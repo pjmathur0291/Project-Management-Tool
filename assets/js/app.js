@@ -2,6 +2,7 @@
 class ProjectManagementApp {
     constructor() {
         this.currentSection = 'dashboard';
+        this.currentTaskFilter = 'all'; // Store current filter state
         this.init();
     }
 
@@ -23,22 +24,44 @@ class ProjectManagementApp {
             });
         });
 
-        // Add buttons
-        document.getElementById('add-project-btn')?.addEventListener('click', () => {
-            this.showAddProjectModal();
-        });
+        // Add buttons (guards in case button is hidden for role restrictions)
+        const addProjectBtn = document.getElementById('add-project-btn');
+        if (addProjectBtn) {
+            addProjectBtn.addEventListener('click', () => {
+                this.showAddProjectModal();
+            });
+        }
 
-        document.getElementById('add-task-btn')?.addEventListener('click', () => {
-            this.showAddTaskModal();
-        });
+        const addTaskBtn = document.getElementById('add-task-btn');
+        if (addTaskBtn) {
+            addTaskBtn.addEventListener('click', () => {
+                this.showAddTaskModal();
+            });
+        }
 
-        document.getElementById('add-member-btn')?.addEventListener('click', () => {
-            this.showAddMemberModal();
-        });
+        const addMemberBtn = document.getElementById('add-member-btn');
+        if (addMemberBtn) {
+            addMemberBtn.addEventListener('click', () => {
+                this.showAddMemberModal();
+            });
+        }
 
         // Logout
         document.getElementById('logout-btn')?.addEventListener('click', () => {
             this.logout();
+        });
+
+        // Task filters
+        document.querySelectorAll('.task-filters button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const filter = e.target.getAttribute('data-filter');
+                this.currentTaskFilter = filter; // Store current filter
+                this.filterTasks(filter);
+                
+                // Update active button
+                document.querySelectorAll('.task-filters button').forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+            });
         });
 
         // Search functionality
@@ -122,11 +145,21 @@ class ProjectManagementApp {
 
     async loadTasks() {
         try {
-            const response = await fetch('api/tasks.php');
+            console.log('Loading tasks...');
+            // Ask backend to do filtering when possible
+            const filterParam = this.currentTaskFilter && this.currentTaskFilter !== 'all' ? `?filter=${this.currentTaskFilter}` : '';
+            const response = await fetch(`api/tasks.php${filterParam}`);
             const data = await response.json();
             
             if (data.success) {
+                console.log(`Loaded ${data.tasks.length} tasks`);
                 this.renderTasks(data.tasks);
+                
+                // Re-apply current filter after loading tasks
+                if (this.currentTaskFilter && this.currentTaskFilter !== 'all') {
+                    console.log(`Re-applying filter: ${this.currentTaskFilter}`);
+                    this.filterTasks(this.currentTaskFilter);
+                }
             }
         } catch (error) {
             console.error('Error loading tasks:', error);
@@ -214,15 +247,20 @@ class ProjectManagementApp {
             return;
         }
 
-        container.innerHTML = tasks.map(task => `
-            <div class="task-item" data-task-id="${task.id}">
-                <input type="checkbox" class="task-checkbox" 
-                       ${task.status === 'completed' ? 'checked' : ''} 
-                       onchange="app.updateTaskStatus(${task.id}, this.checked)">
+        container.innerHTML = tasks.map(task => {
+            // Get current user ID from PHP session (passed via data attribute)
+            const currentUserId = document.body.getAttribute('data-user-id');
+            const isAssignedToMe = task.assigned_to == currentUserId;
+            const assignedClass = isAssignedToMe ? 'task-assigned-to-me' : '';
+            
+            return `
+            <div class="task-item ${task.status === 'completed' ? 'task-completed' : ''} ${assignedClass}" data-task-id="${task.id}" data-task-status="${task.status}">
+                <input type="checkbox" class="task-checkbox" data-task-id="${task.id}"
+                       ${task.status === 'completed' ? 'checked' : ''}>
                 
                 <div class="task-content">
-                    <div class="task-title">${task.title}</div>
-                    <div class="task-description">${task.description || 'No description'}</div>
+                    <div class="task-title ${task.status === 'completed' ? 'completed-text' : ''}">${task.title}</div>
+                    <div class="task-description ${task.status === 'completed' ? 'completed-text' : ''}">${task.description || 'No description'}</div>
                     <small><strong>Project:</strong> ${task.project_name || 'No project'}</small>
                 </div>
                 
@@ -231,6 +269,7 @@ class ProjectManagementApp {
                 <div class="task-meta">
                     <small><strong>Assigned to:</strong> ${task.assignee_name || 'Unassigned'}</small><br>
                     <small><strong>Due:</strong> ${this.formatDate(task.due_date)}</small>
+                    ${task.status === 'completed' ? '<br><small class="completed-badge">✅ Completed</small>' : ''}
                 </div>
                 
                 <div class="task-actions">
@@ -242,7 +281,57 @@ class ProjectManagementApp {
                     </button>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
+        
+        // Bind checkbox events after rendering
+        this.bindTaskCheckboxEvents();
+    }
+
+    bindTaskCheckboxEvents() {
+        console.log('Binding task checkbox events...');
+        const checkboxes = document.querySelectorAll('.task-checkbox');
+        console.log(`Found ${checkboxes.length} checkboxes to bind`);
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const taskId = e.target.getAttribute('data-task-id');
+                const isChecked = e.target.checked;
+                console.log(`Checkbox changed for task ${taskId}, checked: ${isChecked}`);
+                
+                // If marking as complete, show confirmation dialog
+                if (isChecked) {
+                    // Uncheck the checkbox temporarily
+                    e.target.checked = false;
+                    
+                    // Try to show confirmation dialog, fallback to direct completion if Modal is not available
+                    if (typeof Modal !== 'undefined' && Modal.confirm) {
+                        Modal.confirm(
+                            'Mark Task as Complete?',
+                            () => {
+                                // User confirmed - mark as complete
+                                console.log(`User confirmed marking task ${taskId} as complete`);
+                                e.target.checked = true;
+                                this.updateTaskStatus(taskId, true);
+                            },
+                            () => {
+                                // User cancelled - keep unchecked
+                                console.log(`User cancelled marking task ${taskId} as complete`);
+                                e.target.checked = false;
+                            }
+                        );
+                    } else {
+                        // Fallback: direct completion without confirmation
+                        console.log(`Modal not available, marking task ${taskId} as complete directly`);
+                        e.target.checked = true;
+                        this.updateTaskStatus(taskId, true);
+                    }
+                } else {
+                    // Marking as incomplete - no confirmation needed
+                    this.updateTaskStatus(taskId, false);
+                }
+            });
+        });
     }
 
     renderTeamMembers(members) {
@@ -260,7 +349,7 @@ class ProjectManagementApp {
                     <i class="fas fa-user"></i>
                 </div>
                 <h3 class="member-name">${member.full_name}</h3>
-                <p class="member-role">${member.role}</p>
+                <p class="member-role">${member.job_title ? member.job_title : member.role}</p>
                 <p class="member-email">${member.email}</p>
                 
                 <div class="member-stats">
@@ -420,11 +509,14 @@ class ProjectManagementApp {
         });
     }
 
-    showAddProjectModal() {
+    async showAddProjectModal() {
         console.log('showAddProjectModal called'); // Debug log
         
         const modal = new Modal('Add New Project', this.getProjectFormHTML());
         modal.show();
+        
+        // Populate manager dropdown
+        await this.populateProjectFormDropdowns();
         
         // Wait a moment for the modal to be fully rendered
         setTimeout(() => {
@@ -465,15 +557,113 @@ class ProjectManagementApp {
         }, 100);
     }
 
-    showAddTaskModal() {
+    async showAddTaskModal() {
         const modal = new Modal('Add New Task', this.getTaskFormHTML());
         modal.show();
         
-        // Bind form submission
-        document.getElementById('task-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.submitTaskForm();
-        });
+        // Populate projects dropdown
+        await this.populateTaskFormDropdowns();
+        
+        // Wait a moment for the modal to be fully rendered
+        setTimeout(() => {
+            const form = document.getElementById('task-form');
+            if (form) {
+                console.log('Task form found, binding submit event'); // Debug log
+                
+                // Bind form submission
+                form.addEventListener('submit', (e) => {
+                    console.log('Task form submit event triggered'); // Debug log
+                    e.preventDefault();
+                    this.submitTaskForm();
+                });
+            } else {
+                console.error('Task form not found after modal creation!'); // Debug log
+            }
+        }, 100);
+    }
+
+    async populateTaskFormDropdowns() {
+        try {
+            // Load projects
+            const projectsResponse = await fetch('api/projects.php');
+            const projectsData = await projectsResponse.json();
+            
+            // Load team members
+            const teamResponse = await fetch('api/team.php');
+            const teamData = await teamResponse.json();
+            
+            // Populate projects dropdown (for add form)
+            const projectSelect = document.getElementById('task-project-select');
+            if (projectSelect && projectsData.success) {
+                projectSelect.innerHTML = '<option value="">Select Project</option>';
+                projectsData.projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    projectSelect.appendChild(option);
+                });
+            }
+            
+            // Populate team members dropdown (for add form)
+            const assigneeSelect = document.getElementById('task-assignee-select');
+            if (assigneeSelect && teamData.success) {
+                assigneeSelect.innerHTML = '<option value="">Select Member</option>';
+                teamData.members.forEach(member => {
+                    const option = document.createElement('option');
+                    option.value = member.id;
+                    option.textContent = member.full_name;
+                    assigneeSelect.appendChild(option);
+                });
+            }
+            
+            // Populate projects dropdown (for edit form)
+            const editProjectSelect = document.getElementById('edit-task-project-select');
+            if (editProjectSelect && projectsData.success) {
+                editProjectSelect.innerHTML = '<option value="">Select Project</option>';
+                projectsData.projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    editProjectSelect.appendChild(option);
+                });
+            }
+            
+            // Populate team members dropdown (for edit form)
+            const editAssigneeSelect = document.getElementById('edit-task-assignee-select');
+            if (editAssigneeSelect && teamData.success) {
+                editAssigneeSelect.innerHTML = '<option value="">Select Member</option>';
+                teamData.members.forEach(member => {
+                    const option = document.createElement('option');
+                    option.value = member.id;
+                    option.textContent = member.full_name;
+                    editAssigneeSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error populating task form dropdowns:', error);
+        }
+    }
+
+    async populateProjectFormDropdowns() {
+        try {
+            // Load team members for manager selection
+            const teamResponse = await fetch('api/team.php');
+            const teamData = await teamResponse.json();
+            
+            // Populate manager dropdown
+            const managerSelect = document.getElementById('project-manager-select');
+            if (managerSelect && teamData.success) {
+                managerSelect.innerHTML = '<option value="">Select Manager</option>';
+                teamData.members.forEach(member => {
+                    const option = document.createElement('option');
+                    option.value = member.id;
+                    option.textContent = member.full_name;
+                    managerSelect.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error populating project form dropdowns:', error);
+        }
     }
 
     showAddMemberModal() {
@@ -538,10 +728,8 @@ class ProjectManagementApp {
                 
                 <div class="form-group">
                     <label class="form-label">Project Manager</label>
-                    <select class="form-select" name="manager_id" required>
+                    <select class="form-select" name="manager_id" required id="project-manager-select">
                         <option value="">Select Manager</option>
-                        <option value="2">John Doe</option>
-                        <option value="3">Jane Smith</option>
                     </select>
                 </div>
                 
@@ -569,20 +757,15 @@ class ProjectManagementApp {
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Project</label>
-                        <select class="form-select" name="project_id" required>
+                        <select class="form-select" name="project_id" required id="task-project-select">
                             <option value="">Select Project</option>
-                            <option value="1">Website Redesign</option>
-                            <option value="2">Mobile App Development</option>
-                            <option value="3">Database Migration</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Assigned To</label>
-                        <select class="form-select" name="assigned_to" required>
+                        <select class="form-select" name="assigned_to" required id="task-assignee-select">
                             <option value="">Select Member</option>
-                            <option value="3">Jane Smith</option>
-                            <option value="4">Mike Wilson</option>
                         </select>
                     </div>
                 </div>
@@ -708,6 +891,31 @@ class ProjectManagementApp {
                     <input type="email" class="form-input" name="email" required>
                 </div>
                 
+                <div class="form-group">
+                    <label class="form-label">Job Title</label>
+                    <select class="form-select" name="job_title" required>
+                        <option value="Account Manager">Account Manager</option>
+                        <option value="Developer (Manager)">Developer (Manager)</option>
+                        <option value="Graphic Designer (Manager)">Graphic Designer (Manager)</option>
+                        <option value="Graphic Designer">Graphic Designer</option>
+                        <option value="Social Media Executive">Social Media Executive</option>
+                        <option value="Video Editor (Manager)">Video Editor (Manager)</option>
+                        <option value="Video Editor">Video Editor</option>
+                        <option value="UI/UX (Manager)">UI/UX (Manager)</option>
+                        <option value="UI/UX">UI/UX</option>
+                        <option value="Content Writer">Content Writer</option>
+                        <option value="HR">HR</option>
+                        <option value="Sales and Marketing (Manager)">Sales and Marketing (Manager)</option>
+                        <option value="Sales and Marketing">Sales and Marketing</option>
+                        <option value="SEO (Manager)">SEO (Manager)</option>
+                        <option value="SEO">SEO</option>
+                        <option value="Google Ads (Manager)">Google Ads (Manager)</option>
+                        <option value="Google Ads">Google Ads</option>
+                        <option value="Meta Ads (Manager)">Meta Ads (Manager)</option>
+                        <option value="Meta Ads">Meta Ads</option>
+                    </select>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Role</label>
@@ -812,8 +1020,19 @@ class ProjectManagementApp {
     }
 
     async submitTaskForm() {
+        console.log('submitTaskForm called'); // Debug log
+        
         const form = document.getElementById('task-form');
+        if (!form) {
+            console.error('Task form not found!'); // Debug log
+            this.showMessage('Error: Task form not found', 'error');
+            return;
+        }
+        
         const formData = new FormData(form);
+        
+        // Debug: Log form data
+        console.log('Task form data:', Object.fromEntries(formData));
         
         try {
             const response = await fetch('api/tasks.php', {
@@ -822,6 +1041,7 @@ class ProjectManagementApp {
             });
             
             const data = await response.json();
+            console.log('Task API response:', data); // Debug log
             
             if (data.success) {
                 Modal.close();
@@ -831,7 +1051,7 @@ class ProjectManagementApp {
                 this.showMessage(data.message || 'Error creating task', 'error');
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error creating task:', error);
             this.showMessage('Error creating task', 'error');
         }
     }
@@ -863,25 +1083,86 @@ class ProjectManagementApp {
 
     async updateTaskStatus(taskId, completed) {
         try {
+            console.log('=== updateTaskStatus called ===');
+            console.log('Task ID:', taskId);
+            console.log('Completed:', completed);
+            console.log('Task ID type:', typeof taskId);
+            
+            const formData = new FormData();
+            formData.append('status', completed ? 'completed' : 'pending');
+            
+            console.log('Sending request to:', `api/tasks.php?id=${taskId}`);
+            console.log('Form data:', Object.fromEntries(formData));
+            
             const response = await fetch(`api/tasks.php?id=${taskId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    status: completed ? 'completed' : 'pending'
-                })
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(formData)
             });
             
+            console.log('Response status:', response.status);
             const data = await response.json();
+            console.log('Task status update response:', data);
             
             if (data.success) {
                 this.showMessage('Task status updated!', 'success');
-                this.loadTasks();
+                console.log(`Task status updated successfully. Current filter: ${this.currentTaskFilter}`);
+                await this.loadTasks();
+                // Re-apply current filter after updating task status
+                if (this.currentTaskFilter && this.currentTaskFilter !== 'all') {
+                    console.log(`Re-applying filter: ${this.currentTaskFilter}`);
+                    this.filterTasks(this.currentTaskFilter);
+                }
+            } else {
+                this.showMessage(data.message || 'Error updating task status', 'error');
             }
         } catch (error) {
             console.error('Error updating task status:', error);
+            this.showMessage('Error updating task status', 'error');
         }
+    }
+
+    filterTasks(filter) {
+        console.log('Filtering tasks with filter:', filter);
+        const taskItems = document.querySelectorAll('.task-item');
+        console.log('Found task items:', taskItems.length);
+        
+        let visibleCount = 0;
+        
+        taskItems.forEach((item, index) => {
+            // Check if task is completed using the data attribute (most reliable)
+            const taskStatus = item.getAttribute('data-task-status');
+            const isCompleted = taskStatus === 'completed';
+            
+            console.log(`Task ${index + 1}: status = ${taskStatus}, isCompleted = ${isCompleted}`);
+            
+            let shouldShow = false;
+            
+            switch (filter) {
+                case 'all':
+                    shouldShow = true;
+                    break;
+                case 'pending':
+                    shouldShow = !isCompleted;
+                    break;
+                case 'completed':
+                    shouldShow = isCompleted;
+                    break;
+            }
+            
+            item.style.display = shouldShow ? 'flex' : 'none';
+            if (shouldShow) visibleCount++;
+        });
+        
+        console.log(`Filter "${filter}" applied. Showing ${visibleCount} of ${taskItems.length} tasks.`);
+        
+        // Update the active filter button
+        document.querySelectorAll('.task-filters button').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-filter') === filter) {
+                btn.classList.add('active');
+            }
+        });
     }
 
     async deleteProject(projectId) {
@@ -1011,9 +1292,147 @@ class ProjectManagementApp {
         }
     }
 
-    editTask(taskId) {
-        // Implementation for editing tasks
-        console.log('Edit task:', taskId);
+    async editTask(taskId) {
+        try {
+            console.log('Edit task:', taskId);
+            
+            // Fetch task details
+            const response = await fetch(`api/tasks.php?id=${taskId}`);
+            const data = await response.json();
+            
+            if (data.success && data.task) {
+                const task = data.task;
+                console.log('Task data:', task);
+                
+                // Create and show edit modal
+                const modal = new Modal('Edit Task', this.getEditTaskFormHTML(task));
+                modal.show();
+                
+                // Populate dropdowns
+                await this.populateTaskFormDropdowns();
+                
+                // Set form values
+                setTimeout(() => {
+                    const form = document.getElementById('edit-task-form');
+                    if (form) {
+                        // Set form values
+                        form.querySelector('[name="title"]').value = task.title || '';
+                        form.querySelector('[name="description"]').value = task.description || '';
+                        form.querySelector('[name="project_id"]').value = task.project_id || '';
+                        form.querySelector('[name="assigned_to"]').value = task.assigned_to || '';
+                        form.querySelector('[name="priority"]').value = task.priority || 'medium';
+                        form.querySelector('[name="due_date"]').value = task.due_date || '';
+                        form.querySelector('[name="estimated_hours"]').value = task.estimated_hours || '';
+                        
+                        // Bind form submission
+                        form.addEventListener('submit', (e) => {
+                            e.preventDefault();
+                            this.submitEditTaskForm(taskId);
+                        });
+                    }
+                }, 100);
+            } else {
+                this.showMessage('Error loading task details', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading task details:', error);
+            this.showMessage('Error loading task details', 'error');
+        }
+    }
+
+    getEditTaskFormHTML(task) {
+        return `
+            <form id="edit-task-form">
+                <div class="form-group">
+                    <label class="form-label">Task Title</label>
+                    <input type="text" class="form-input" name="title" value="${task.title || ''}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-textarea" name="description" rows="3">${task.description || ''}</textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Project</label>
+                        <select class="form-select" name="project_id" required id="edit-task-project-select">
+                            <option value="">Select Project</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Assigned To</label>
+                        <select class="form-select" name="assigned_to" required id="edit-task-assignee-select">
+                            <option value="">Select Member</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" name="priority" required>
+                            <option value="low" ${task.priority === 'low' ? 'selected' : ''}>Low</option>
+                            <option value="medium" ${task.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                            <option value="high" ${task.priority === 'high' ? 'selected' : ''}>High</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" class="form-input" name="due_date" value="${task.due_date || ''}" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Estimated Hours</label>
+                    <input type="number" class="form-input" name="estimated_hours" min="0" step="0.5" value="${task.estimated_hours || ''}">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Update Task</button>
+                    <button type="button" class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
+                </div>
+            </form>
+        `;
+    }
+
+    async submitEditTaskForm(taskId) {
+        console.log('submitEditTaskForm called for task:', taskId);
+        
+        const form = document.getElementById('edit-task-form');
+        if (!form) {
+            console.error('Edit task form not found!');
+            this.showMessage('Error: Edit task form not found', 'error');
+            return;
+        }
+        
+        const formData = new FormData(form);
+        
+        // Debug: Log form data
+        console.log('Edit task form data:', Object.fromEntries(formData));
+        
+        try {
+            const response = await fetch(`api/tasks.php?id=${taskId}`, {
+                method: 'PUT',
+                body: formData
+            });
+            
+            const data = await response.json();
+            console.log('Edit task API response:', data);
+            
+            if (data.success) {
+                Modal.close();
+                this.showMessage('Task updated successfully!', 'success');
+                this.loadTasks();
+            } else {
+                this.showMessage(data.message || 'Error updating task', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating task:', error);
+            this.showMessage('Error updating task', 'error');
+        }
     }
 
     editMember(memberId) {

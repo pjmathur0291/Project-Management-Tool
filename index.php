@@ -26,7 +26,7 @@ $current_user = [
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
+<body data-user-id="<?php echo $_SESSION['user_id']; ?>">
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
@@ -123,9 +123,11 @@ $current_user = [
                 <div id="projects" class="content-section">
                     <div class="section-header">
                         <h2>Project Management</h2>
-                        <button class="btn btn-primary" id="add-project-btn">
-                            <i class="fas fa-plus"></i> New Project
-                        </button>
+                        <?php if ($current_user['role'] === 'admin'): ?>
+                            <button class="btn btn-primary" id="add-project-btn">
+                                <i class="fas fa-plus"></i> New Project
+                            </button>
+                        <?php endif; ?>
                     </div>
                     <div class="projects-grid" id="projects-grid">
                         <!-- Projects will be loaded dynamically -->
@@ -136,9 +138,18 @@ $current_user = [
                 <div id="tasks" class="content-section">
                     <div class="section-header">
                         <h2>Task Management</h2>
-                        <button class="btn btn-primary" id="add-task-btn">
-                            <i class="fas fa-plus"></i> New Task
-                        </button>
+                        <div class="header-actions">
+                            <div class="task-filters">
+                                <button class="btn btn-outline active" data-filter="all">All Tasks</button>
+                                <button class="btn btn-outline" data-filter="pending">Pending</button>
+                                <button class="btn btn-outline" data-filter="completed">Completed</button>
+                            </div>
+                            <?php if (in_array($current_user['role'], ['admin', 'manager'])): ?>
+                                <button class="btn btn-primary" id="add-task-btn">
+                                    <i class="fas fa-plus"></i> New Task
+                                </button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <div class="tasks-container" id="tasks-container">
                         <!-- Tasks will be loaded dynamically -->
@@ -149,9 +160,11 @@ $current_user = [
                 <div id="team" class="content-section">
                     <div class="section-header">
                         <h2>Team Management</h2>
-                        <button class="btn btn-primary" id="add-member-btn">
-                            <i class="fas fa-plus"></i> Add Member
-                        </button>
+                        <?php if (in_array($current_user['role'], ['admin', 'manager'])): ?>
+                            <button class="btn btn-primary" id="add-member-btn">
+                                <i class="fas fa-plus"></i> Add Member
+                            </button>
+                        <?php endif; ?>
                     </div>
                     <div class="team-grid" id="team-grid">
                         <!-- Team members will be loaded dynamically -->

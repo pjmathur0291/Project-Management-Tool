@@ -60,13 +60,31 @@ function getProjectById($id) {
 function getAllTasks() {
     $pdo = getDBConnection();
     
-    $stmt = $pdo->query("
-        SELECT t.*, p.name as project_name, u.full_name as assignee_name 
-        FROM tasks t 
-        LEFT JOIN projects p ON t.project_id = p.id 
-        LEFT JOIN users u ON t.assigned_to = u.id 
-        ORDER BY t.due_date ASC
-    ");
+    // Check if user is admin or manager (can see all tasks)
+    $userId = $_SESSION['user_id'] ?? null;
+    $userRole = $_SESSION['role'] ?? null;
+    
+    if ($userRole === 'admin' || $userRole === 'manager') {
+        // Admin and managers see all tasks
+        $stmt = $pdo->query("
+            SELECT t.*, p.name as project_name, u.full_name as assignee_name 
+            FROM tasks t 
+            LEFT JOIN projects p ON t.project_id = p.id 
+            LEFT JOIN users u ON t.assigned_to = u.id 
+            ORDER BY t.created_at DESC
+        ");
+    } else {
+        // Regular members only see tasks assigned to them
+        $stmt = $pdo->prepare("
+            SELECT t.*, p.name as project_name, u.full_name as assignee_name 
+            FROM tasks t 
+            LEFT JOIN projects p ON t.project_id = p.id 
+            LEFT JOIN users u ON t.assigned_to = u.id 
+            WHERE t.assigned_to = ?
+            ORDER BY t.created_at DESC
+        ");
+        $stmt->execute([$userId]);
+    }
     
     return $stmt->fetchAll();
 }
@@ -209,6 +227,20 @@ function createTask($data) {
 function updateTask($id, $data) {
     $pdo = getDBConnection();
     
+    // Fetch existing task so we can preserve fields not provided
+    $existing = getTaskById($id);
+    if (!$existing) return false;
+
+    $title = $data['title'] ?? $existing['title'];
+    $description = array_key_exists('description', $data) ? $data['description'] : $existing['description'];
+    $status = $data['status'] ?? $existing['status'];
+    $priority = $data['priority'] ?? $existing['priority'];
+    $projectId = array_key_exists('project_id', $data) ? $data['project_id'] : $existing['project_id'];
+    $assignedTo = array_key_exists('assigned_to', $data) ? $data['assigned_to'] : $existing['assigned_to'];
+    $dueDate = array_key_exists('due_date', $data) ? $data['due_date'] : $existing['due_date'];
+    $estimatedHours = array_key_exists('estimated_hours', $data) ? $data['estimated_hours'] : $existing['estimated_hours'];
+    $actualHours = array_key_exists('actual_hours', $data) ? $data['actual_hours'] : $existing['actual_hours'];
+
     $stmt = $pdo->prepare("
         UPDATE tasks 
         SET title = ?, description = ?, status = ?, priority = ?, 
@@ -217,18 +249,70 @@ function updateTask($id, $data) {
         WHERE id = ?
     ");
     
-    return $stmt->execute([
-        $data['title'],
-        $data['description'],
-        $data['status'],
-        $data['priority'],
-        $data['project_id'],
-        $data['assigned_to'],
-        $data['due_date'],
-        $data['estimated_hours'],
-        $data['actual_hours'],
+    $result = $stmt->execute([
+        $title,
+        $description,
+        $status,
+        $priority,
+        $projectId,
+        $assignedTo,
+        $dueDate,
+        $estimatedHours,
+        $actualHours,
         $id
     ]);
+
+    if ($result) {
+        // If status transitioned to completed, upsert into completed_tasks
+        if ($status === 'completed') {
+            $userId = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
+            $stmt2 = $pdo->prepare("INSERT INTO completed_tasks (task_id, completed_by) VALUES (?, ?) ON DUPLICATE KEY UPDATE completed_by = VALUES(completed_by), completed_at = CURRENT_TIMESTAMP");
+            $stmt2->execute([$id, $userId]);
+        } else {
+            // If moved out of completed, remove from completed_tasks
+            $stmt3 = $pdo->prepare("DELETE FROM completed_tasks WHERE task_id = ?");
+            $stmt3->execute([$id]);
+        }
+    }
+
+    return $result;
+}
+
+// Get all completed tasks joined with task info
+function getAllCompletedTasks() {
+    $pdo = getDBConnection();
+    
+    // Check if user is admin or manager (can see all completed tasks)
+    $userId = $_SESSION['user_id'] ?? null;
+    $userRole = $_SESSION['role'] ?? null;
+    
+    if ($userRole === 'admin' || $userRole === 'manager') {
+        // Admin and managers see all completed tasks
+        $stmt = $pdo->query("
+            SELECT t.*, p.name as project_name, u.full_name as assignee_name, ct.completed_at, cb.full_name as completed_by_name
+            FROM completed_tasks ct
+            JOIN tasks t ON ct.task_id = t.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            LEFT JOIN users u ON t.assigned_to = u.id
+            LEFT JOIN users cb ON ct.completed_by = cb.id
+            ORDER BY ct.completed_at DESC
+        ");
+    } else {
+        // Regular members only see their completed tasks
+        $stmt = $pdo->prepare("
+            SELECT t.*, p.name as project_name, u.full_name as assignee_name, ct.completed_at, cb.full_name as completed_by_name
+            FROM completed_tasks ct
+            JOIN tasks t ON ct.task_id = t.id
+            LEFT JOIN projects p ON t.project_id = p.id
+            LEFT JOIN users u ON t.assigned_to = u.id
+            LEFT JOIN users cb ON ct.completed_by = cb.id
+            WHERE t.assigned_to = ?
+            ORDER BY ct.completed_at DESC
+        ");
+        $stmt->execute([$userId]);
+    }
+    
+    return $stmt->fetchAll();
 }
 
 // Delete task
@@ -244,8 +328,8 @@ function createUser($data) {
     $pdo = getDBConnection();
     
     $stmt = $pdo->prepare("
-        INSERT INTO users (username, email, password, full_name, role) 
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO users (username, email, password, full_name, role, job_title) 
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
     
     return $stmt->execute([
@@ -253,7 +337,8 @@ function createUser($data) {
         $data['email'],
         password_hash($data['password'], PASSWORD_DEFAULT),
         $data['full_name'],
-        $data['role']
+        $data['role'],
+        $data['job_title'] ?? null
     ]);
 }
 
@@ -261,8 +346,8 @@ function createUser($data) {
 function updateUser($id, $data) {
     $pdo = getDBConnection();
     
-    $sql = "UPDATE users SET username = ?, email = ?, full_name = ?, role = ?";
-    $params = [$data['username'], $data['email'], $data['full_name'], $data['role']];
+    $sql = "UPDATE users SET username = ?, email = ?, full_name = ?, role = ?, job_title = ?";
+    $params = [$data['username'], $data['email'], $data['full_name'], $data['role'], $data['job_title'] ?? null];
     
     if (!empty($data['password'])) {
         $sql .= ", password = ?";
@@ -451,7 +536,7 @@ function searchTasks($query) {
         LEFT JOIN projects p ON t.project_id = p.id 
         LEFT JOIN users u ON t.assigned_to = u.id 
         WHERE t.title LIKE ? OR t.description LIKE ?
-        ORDER BY t.due_date ASC
+        ORDER BY t.created_at DESC
     ");
     
     $searchTerm = "%{$query}%";

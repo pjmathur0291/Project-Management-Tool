@@ -20,6 +20,13 @@ try {
                 } else {
                     $response = ['success' => false, 'message' => 'Task not found'];
                 }
+            } else if (isset($_GET['filter']) && $_GET['filter'] === 'completed') {
+                $tasks = getAllCompletedTasks();
+                $response = ['success' => true, 'tasks' => $tasks];
+            } else if (isset($_GET['filter']) && $_GET['filter'] === 'pending') {
+                $all = getAllTasks();
+                $pending = array_values(array_filter($all, function($t){ return $t['status'] !== 'completed'; }));
+                $response = ['success' => true, 'tasks' => $pending];
             } else {
                 $tasks = getAllTasks();
                 $response = ['success' => true, 'tasks' => $tasks];
@@ -27,6 +34,15 @@ try {
             break;
 
         case 'POST':
+            // Get current user ID from session
+            session_start();
+            $currentUserId = $_SESSION['user_id'] ?? null;
+            
+            if (!$currentUserId) {
+                $response = ['success' => false, 'message' => 'User not authenticated'];
+                break;
+            }
+            
             $data = [
                 'title' => $_POST['title'] ?? '',
                 'description' => $_POST['description'] ?? '',
@@ -34,7 +50,7 @@ try {
                 'priority' => $_POST['priority'] ?? 'medium',
                 'project_id' => $_POST['project_id'] ?? null,
                 'assigned_to' => $_POST['assigned_to'] ?? null,
-                'assigned_by' => 2, // Default to current user ID
+                'assigned_by' => $currentUserId, // Use current logged-in user ID
                 'due_date' => $_POST['due_date'] ?? null,
                 'estimated_hours' => $_POST['estimated_hours'] ?? null
             ];
@@ -42,6 +58,17 @@ try {
             if (empty($data['title'])) {
                 $response = ['success' => false, 'message' => 'Task title is required'];
                 break;
+            }
+
+            // Validate that assigned_to user exists if provided
+            if (!empty($data['assigned_to'])) {
+                $pdo = getDBConnection();
+                $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+                $stmt->execute([$data['assigned_to']]);
+                if (!$stmt->fetch()) {
+                    $response = ['success' => false, 'message' => 'Assigned user does not exist'];
+                    break;
+                }
             }
 
             if (createTask($data)) {
@@ -52,7 +79,21 @@ try {
             break;
 
         case 'PUT':
-            parse_str(file_get_contents("php://input"), $putData);
+            // Accept both form-data and x-www-form-urlencoded/JSON
+            $raw = file_get_contents("php://input");
+            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+            $putData = [];
+            if (stripos($contentType, 'application/json') !== false) {
+                $json = json_decode($raw, true);
+                if (is_array($json)) $putData = $json;
+            } else {
+                // For form-data the superglobals are empty on PUT, try parse_str
+                parse_str($raw, $putData);
+                // If still empty and we came via fetch with FormData, fallback to $_POST (some servers populate it)
+                if (empty($putData) && !empty($_POST)) {
+                    $putData = $_POST;
+                }
+            }
             $id = $_GET['id'] ?? null;
             
             if (!$id) {
@@ -60,17 +101,12 @@ try {
                 break;
             }
 
-            $data = [
-                'title' => $putData['title'] ?? '',
-                'description' => $putData['description'] ?? '',
-                'status' => $putData['status'] ?? 'pending',
-                'priority' => $putData['priority'] ?? 'medium',
-                'project_id' => $putData['project_id'] ?? null,
-                'assigned_to' => $putData['assigned_to'] ?? null,
-                'due_date' => $putData['due_date'] ?? null,
-                'estimated_hours' => $putData['estimated_hours'] ?? null,
-                'actual_hours' => $putData['actual_hours'] ?? null
-            ];
+            $data = [];
+            foreach (['title','description','status','priority','project_id','assigned_to','due_date','estimated_hours','actual_hours'] as $key) {
+                if (array_key_exists($key, $putData)) {
+                    $data[$key] = $putData[$key];
+                }
+            }
 
             if (updateTask($id, $data)) {
                 $response = ['success' => true, 'message' => 'Task updated successfully'];

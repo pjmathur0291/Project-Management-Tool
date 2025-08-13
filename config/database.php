@@ -62,11 +62,15 @@ function createTables($pdo) {
             password VARCHAR(255) NOT NULL,
             full_name VARCHAR(100) NOT NULL,
             role ENUM('admin', 'manager', 'member') DEFAULT 'member',
+            job_title VARCHAR(100) NULL,
             avatar VARCHAR(255),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+
+    // Ensure job_title exists for previously created databases
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL"); } catch (Exception $e) { /* ignore for older MySQL not supporting IF NOT EXISTS */ }
     
     // Projects table
     $pdo->exec("
@@ -105,6 +109,18 @@ function createTables($pdo) {
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
             FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
             FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    // Completed tasks table (history of completions)
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS completed_tasks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL UNIQUE,
+            completed_by INT NULL,
+            completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+            FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
     

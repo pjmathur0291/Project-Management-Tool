@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filter Test</title>
+    <style>
+        .task-item { 
+            display: flex; 
+            padding: 10px; 
+            margin: 5px 0; 
+            border: 1px solid #ddd; 
+            background: white; 
+        }
+        .task-completed { 
+            background: #90EE90; 
+        }
+        .btn { 
+            padding: 8px 16px; 
+            margin: 0 5px; 
+            border: 1px solid #ccc; 
+            background: white; 
+            cursor: pointer; 
+        }
+        .btn.active { 
+            background: #007bff; 
+            color: white; 
+        }
+        .hidden { 
+            display: none !important; 
+        }
+    </style>
+</head>
+<body>
+    <h2>JavaScript Filter Test</h2>
+    
+    <div class="task-filters">
+        <button class="btn active" data-filter="all">All Tasks</button>
+        <button class="btn" data-filter="pending">Pending</button>
+        <button class="btn" data-filter="completed">Completed</button>
+    </div>
+    
+    <div id="tasks-container">
+        <div class="task-item" data-task-status="pending" data-task-id="1">
+            <input type="checkbox" class="task-checkbox" data-task-id="1">
+            <div class="task-content">
+                <div class="task-title">Task 1 - Pending</div>
+                <div class="task-description">This is a pending task</div>
+            </div>
+        </div>
+        
+        <div class="task-item task-completed" data-task-status="completed" data-task-id="2">
+            <input type="checkbox" class="task-checkbox" data-task-id="2" checked>
+            <div class="task-content">
+                <div class="task-title completed-text">Task 2 - Completed</div>
+                <div class="task-description completed-text">This is a completed task</div>
+            </div>
+            <small class="completed-badge">✅ Completed</small>
+        </div>
+        
+        <div class="task-item" data-task-status="pending" data-task-id="3">
+            <input type="checkbox" class="task-checkbox" data-task-id="3">
+            <div class="task-content">
+                <div class="task-title">Task 3 - Pending</div>
+                <div class="task-description">Another pending task</div>
+            </div>
+        </div>
+        
+        <div class="task-item task-completed" data-task-status="completed" data-task-id="4">
+            <input type="checkbox" class="task-checkbox" data-task-id="4" checked>
+            <div class="task-content">
+                <div class="task-title completed-text">Task 4 - Completed</div>
+                <div class="task-description completed-text">Another completed task</div>
+            </div>
+            <small class="completed-badge">✅ Completed</small>
+        </div>
+    </div>
+    
+    <div id="debug-info" style="margin-top: 20px; padding: 10px; background: #f0f0f0;">
+        <h3>Debug Info:</h3>
+        <div id="debug-output"></div>
+    </div>
+    
+    <script>
+        let currentTaskFilter = 'all';
+        
+        function filterTasks(filter) {
+            console.log('Filtering tasks with filter:', filter);
+            const taskItems = document.querySelectorAll('.task-item');
+            console.log('Found task items:', taskItems.length);
+            
+            let visibleCount = 0;
+            
+            taskItems.forEach((item, index) => {
+                // Check if task is completed using the data attribute (most reliable)
+                const taskStatus = item.getAttribute('data-task-status');
+                const isCompleted = taskStatus === 'completed';
+                
+                console.log(`Task ${index + 1}: status = ${taskStatus}, isCompleted = ${isCompleted}`);
+                
+                let shouldShow = false;
+                
+                switch (filter) {
+                    case 'all':
+                        shouldShow = true;
+                        break;
+                    case 'pending':
+                        shouldShow = !isCompleted;
+                        break;
+                    case 'completed':
+                        shouldShow = isCompleted;
+                        break;
+                }
+                
+                item.style.display = shouldShow ? 'flex' : 'none';
+                if (shouldShow) visibleCount++;
+            });
+            
+            console.log(`Filter "${filter}" applied. Showing ${visibleCount} of ${taskItems.length} tasks.`);
+            
+            // Update the active filter button
+            document.querySelectorAll('.task-filters button').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-filter') === filter) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Update debug info
+            updateDebugInfo(filter, visibleCount, taskItems.length);
+        }
+        
+        function updateDebugInfo(filter, visibleCount, totalCount) {
+            const debugOutput = document.getElementById('debug-output');
+            debugOutput.innerHTML = `
+                <p><strong>Current Filter:</strong> ${filter}</p>
+                <p><strong>Visible Tasks:</strong> ${visibleCount} of ${totalCount}</p>
+                <p><strong>Task Statuses:</strong></p>
+                <ul>
+                    <li>Task 1: pending</li>
+                    <li>Task 2: completed</li>
+                    <li>Task 3: pending</li>
+                    <li>Task 4: completed</li>
+                </ul>
+            `;
+        }
+        
+        // Bind filter button events
+        document.querySelectorAll('.task-filters button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const filter = e.target.getAttribute('data-filter');
+                currentTaskFilter = filter;
+                filterTasks(filter);
+            });
+        });
+        
+        // Initialize debug info
+        updateDebugInfo('all', 4, 4);
+        
+        console.log('Filter test initialized. Try clicking the filter buttons!');
+    </script>
+</body>
+</html>

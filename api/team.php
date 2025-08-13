@@ -32,7 +32,8 @@ try {
                 'email' => $_POST['email'] ?? '',
                 'password' => $_POST['password'] ?? '',
                 'full_name' => $_POST['full_name'] ?? '',
-                'role' => $_POST['role'] ?? 'member'
+                'role' => $_POST['role'] ?? 'member',
+                'job_title' => $_POST['job_title'] ?? null
             ];
 
             if (empty($data['username']) || empty($data['email']) || empty($data['password']) || empty($data['full_name'])) {
@@ -71,7 +72,8 @@ try {
                 'username' => $putData['username'] ?? '',
                 'email' => $putData['email'] ?? '',
                 'full_name' => $putData['full_name'] ?? '',
-                'role' => $putData['role'] ?? 'member'
+                'role' => $putData['role'] ?? 'member',
+                'job_title' => $putData['job_title'] ?? null
             ];
 
             // Only update password if provided
