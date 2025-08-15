@@ -74,12 +74,22 @@ class MultimediaManager {
             // Create directory if it doesn't exist
             $dir = dirname($uploadPath);
             if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
+                if (!mkdir($dir, 0777, true)) {
+                    return ['success' => false, 'message' => 'Failed to create upload directory'];
+                }
+                // Ensure directory is writable
+                chmod($dir, 0777);
+            }
+
+            // Check if directory is writable
+            if (!is_writable($dir)) {
+                return ['success' => false, 'message' => 'Upload directory is not writable'];
             }
 
             // Move uploaded file
             if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
-                return ['success' => false, 'message' => 'Failed to move uploaded file'];
+                $error = error_get_last();
+                return ['success' => false, 'message' => 'Failed to move uploaded file: ' . ($error['message'] ?? 'Unknown error')];
             }
 
             // Generate thumbnail for images
