@@ -466,6 +466,12 @@ $error_message = $_GET['error'] ?? '';
                     <i class="fas fa-plus"></i> Create New Task
                 </a>
             <?php endif; ?>
+            <a href="background-upload-simple.php" class="btn btn-info">
+                <i class="fas fa-cloud-upload-alt"></i> Background Upload
+            </a>
+            <a href="large-file-upload.php" class="btn btn-success">
+                <i class="fas fa-file-upload"></i> Large File Upload
+            </a>
             <a href="index.php" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
@@ -628,7 +634,7 @@ $error_message = $_GET['error'] ?? '';
                                 </span>
                             <?php endif; ?>
                             
-                            <a href="view-task.php?id=<?php echo $task['id']; ?>" class="btn btn-info btn-sm" title="View detailed task information">
+                            <a href="task-detail.php?id=<?php echo $task['id']; ?>" class="btn btn-info btn-sm" title="View detailed task information with multimedia files">
                                 <i class="fas fa-search"></i> View Details
                             </a>
                             

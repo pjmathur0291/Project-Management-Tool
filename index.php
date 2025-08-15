@@ -61,6 +61,9 @@ try {
                 <li class="nav-item" data-section="reports">
                     <a href="#reports"><i class="fas fa-chart-bar"></i> Reports</a>
                 </li>
+                <li class="nav-item">
+                    <a href="background-upload-simple.php"><i class="fas fa-cloud-upload-alt"></i> Background Upload</a>
+                </li>
             </ul>
         </nav>
 

@@ -21,25 +21,58 @@ $current_user = [
     'role' => $_SESSION['role']
 ];
 
-// Check if user can create tasks
-$canCreateTasks = in_array($current_user['role'], ['admin', 'manager']);
-if (!$canCreateTasks) {
-    $error_message = 'You do not have permission to create tasks. Only admins and managers can create tasks.';
+// Check if user can edit tasks
+$canEditTasks = in_array($current_user['role'], ['admin', 'manager']);
+if (!$canEditTasks) {
+    header('Location: task-management.php');
+    exit();
+}
+
+$task_id = $_GET['id'] ?? null;
+if (!$task_id) {
+    header('Location: task-management.php');
+    exit();
 }
 
 $success_message = '';
 $error_message = '';
 
-// Initialize database connection once for the whole script
+// Initialize database connection
 $pdo = null;
 try {
-	$pdo = getDBConnection();
+    $pdo = getDBConnection();
 } catch (Exception $e) {
-	$error_message = 'Database connection error: ' . $e->getMessage();
+    $error_message = 'Database connection error: ' . $e->getMessage();
+}
+
+// Get task details
+$task = null;
+if ($pdo) {
+    try {
+        $task = getTaskById($task_id);
+        if (!$task) {
+            header('Location: task-management.php');
+            exit();
+        }
+    } catch (Exception $e) {
+        $error_message = 'Error loading task: ' . $e->getMessage();
+    }
+}
+
+// Get projects and team members for dropdowns
+$projects = [];
+$team_members = [];
+if ($pdo) {
+    try {
+        $projects = getAllProjects();
+        $team_members = getAllUsers();
+    } catch (Exception $e) {
+        $error_message = 'Error loading data: ' . $e->getMessage();
+    }
 }
 
 // Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canCreateTasks) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canEditTasks && $task) {
     $title = trim($_POST['title'] ?? '');
     $description = trim($_POST['description'] ?? '');
     $project_id = $_POST['project_id'] ?? null;
@@ -54,27 +87,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canCreateTasks) {
     } else {
         try {
             $taskData = [
+                'id' => $task_id,
                 'title' => $title,
                 'description' => $description,
-                'status' => 'pending',
                 'priority' => $priority,
                 'project_id' => $project_id ?: null,
                 'assigned_to' => $assigned_to ?: null,
-                'assigned_by' => $current_user['id'],
                 'due_date' => $due_date ?: null,
                 'estimated_hours' => $estimated_hours ?: null
             ];
             
-            if (createTask($taskData)) {
-                $success_message = 'Task created successfully!';
-                
-                // Get the task ID that was just created
-                $stmt = $pdo->prepare("SELECT id FROM tasks WHERE title = ? AND assigned_by = ? ORDER BY created_at DESC LIMIT 1");
-                $stmt->execute([$title, $current_user['id']]);
-                $task_id = $stmt->fetchColumn();
+            if (updateTask($taskData)) {
+                $success_message = 'Task updated successfully!';
                 
                 // Handle file uploads if any
-                if ($task_id && isset($_FILES['files']) && !empty($_FILES['files']['name'][0])) {
+                if (isset($_FILES['files']) && !empty($_FILES['files']['name'][0])) {
                     try {
                         $multimediaManager = new MultimediaManager($pdo);
                         $uploadedFiles = 0;
@@ -109,55 +136,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canCreateTasks) {
                     }
                 }
                 
-                // Send notification to assigned user if task is assigned (only if DB connected)
-                if ($assigned_to && $pdo) {
-                    try {
-                        // Check if notification tables exist before trying to use them
-                        $stmt = $pdo->query("SHOW TABLES LIKE 'notifications'");
-                        if ($stmt->rowCount() > 0) {
-                            require_once 'includes/NotificationManager.php';
-                            $notificationManager = new NotificationManager($pdo);
-                            
-                            if ($task_id) {
-                                $notificationManager->sendTaskAssignmentNotification($task_id, $assigned_to, $current_user['id']);
-                                $success_message .= ' Notification sent to assigned user.';
-                            }
-                        }
-                    } catch (Exception $e) {
-                        // Log error but don't show to user
-                        error_log("Error sending notification: " . $e->getMessage());
-                    }
-                }
-                
-                // Clear form data
-                $_POST = array();
+                // Refresh task data
+                $task = getTaskById($task_id);
             } else {
-                $error_message = 'Failed to create task. Please try again.';
+                $error_message = 'Failed to update task. Please try again.';
             }
         } catch (Exception $e) {
-            $error_message = 'Error creating task: ' . $e->getMessage();
+            $error_message = 'Error updating task: ' . $e->getMessage();
         }
     }
 }
 
-// Get projects for dropdown
-$projects = [];
-try {
-    $pdo = getDBConnection();
-    $stmt = $pdo->query("SELECT id, name FROM projects ORDER BY name");
-    $projects = $stmt->fetchAll();
-} catch (Exception $e) {
-    $error_message = 'Error loading projects: ' . $e->getMessage();
-}
-
-// Get team members for dropdown
-$team_members = [];
-try {
-    $pdo = getDBConnection();
-    $stmt = $pdo->query("SELECT id, full_name, job_title, role FROM users ORDER BY job_title, full_name");
-    $team_members = $stmt->fetchAll();
-} catch (Exception $e) {
-    $error_message = 'Error loading team members: ' . $e->getMessage();
+// Get existing files for this task
+$existingFiles = [];
+if ($pdo && $task) {
+    try {
+        $multimediaManager = new MultimediaManager($pdo);
+        $files = $multimediaManager->getFilesByEntity('task', $task_id);
+        
+        foreach ($files as $file) {
+            $existingFiles[] = [
+                'id' => $file['id'],
+                'filename' => $file['filename'],
+                'original_filename' => $file['original_filename'],
+                'file_path' => $file['file_path'],
+                'file_type' => $file['file_type'],
+                'file_size' => $file['file_size'],
+                'formatted_size' => $multimediaManager->formatFileSize($file['file_size']),
+                'mime_type' => $file['mime_type'],
+                'description' => $file['description'],
+                'uploaded_by' => $file['uploaded_by'],
+                'uploaded_by_name' => $file['uploaded_by_name'],
+                'created_at' => $file['created_at'],
+                'icon' => $multimediaManager->getFileIcon($file['file_type']),
+                'is_image' => $multimediaManager->isImage($file['file_type']),
+                'is_video' => $multimediaManager->isVideo($file['file_type']),
+                'is_document' => $multimediaManager->isDocument($file['file_type'])
+            ];
+        }
+    } catch (Exception $e) {
+        error_log("Error loading files: " . $e->getMessage());
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -165,23 +184,18 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create New Task - Project Management Tool</title>
+    <title>Edit Task - Project Management Tool</title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .create-task-container {
+        .edit-task-container {
             max-width: 800px;
-            margin: 20px auto;
+            margin: 0 auto;
             padding: 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
         .form-header {
             text-align: center;
             margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #eee;
         }
         .form-header h1 {
             color: #333;
@@ -306,6 +320,67 @@ try {
         .remove-file:hover {
             background: #c82333;
         }
+        
+        /* Existing Files Section */
+        .existing-files {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .existing-files h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .file-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        
+        .file-item {
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .file-icon {
+            font-size: 1.5em;
+            color: #007bff;
+        }
+        
+        .file-details {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+        
+        .file-size {
+            font-size: 0.8em;
+            color: #666;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .file-actions .btn {
+            padding: 3px 8px;
+            font-size: 0.7em;
+        }
     </style>
     
     <script>
@@ -314,9 +389,9 @@ try {
         });
         
         function initializeFileUpload() {
-            const uploadArea = document.getElementById('upload-area-create');
+            const uploadArea = document.getElementById('upload-area-edit');
             const fileInput = uploadArea.querySelector('.file-input');
-            const uploadQueue = document.getElementById('upload-queue-create');
+            const uploadQueue = document.getElementById('upload-queue-edit');
             
             // Drag and drop functionality
             uploadArea.addEventListener('dragover', function(e) {
@@ -396,13 +471,33 @@ try {
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
+        
+        function deleteExistingFile(fileId) {
+            if (confirm('Are you sure you want to delete this file?')) {
+                fetch(`api/upload.php?id=${fileId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error deleting file: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting file:', error);
+                    alert('Error deleting file');
+                });
+            }
+        }
     </script>
 </head>
 <body>
-    <div class="create-task-container">
+    <div class="edit-task-container">
         <div class="form-header">
-            <h1><i class="fas fa-plus-circle"></i> Create New Task</h1>
-            <p>Add a new task to your project management system</p>
+            <h1><i class="fas fa-edit"></i> Edit Task</h1>
+            <p>Update task details and manage attached files</p>
         </div>
 
         <?php if ($success_message): ?>
@@ -417,16 +512,16 @@ try {
             </div>
         <?php endif; ?>
 
-        <?php if ($canCreateTasks): ?>
+        <?php if ($task): ?>
             <form method="POST" action="" enctype="multipart/form-data">
                 <div class="form-group">
                     <label class="form-label">Task Title *</label>
-                    <input type="text" class="form-input" name="title" value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>" required>
+                    <input type="text" class="form-input" name="title" value="<?php echo htmlspecialchars($task['title']); ?>" required>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Description</label>
-                    <textarea class="form-textarea" name="description" rows="3"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
+                    <textarea class="form-textarea" name="description" rows="3"><?php echo htmlspecialchars($task['description'] ?? ''); ?></textarea>
                 </div>
                 
                 <div class="form-row">
@@ -435,7 +530,7 @@ try {
                         <select class="form-select" name="project_id">
                             <option value="">Select Project (Optional)</option>
                             <?php foreach ($projects as $project): ?>
-                                <option value="<?php echo $project['id']; ?>" <?php echo ($_POST['project_id'] ?? '') == $project['id'] ? 'selected' : ''; ?>>
+                                <option value="<?php echo $project['id']; ?>" <?php echo ($task['project_id'] ?? '') == $project['id'] ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($project['name']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -447,7 +542,7 @@ try {
                         <select class="form-select" name="assigned_to">
                             <option value="">Select Member (Optional)</option>
                             <?php foreach ($team_members as $member): ?>
-                                <option value="<?php echo $member['id']; ?>" <?php echo ($_POST['assigned_to'] ?? '') == $member['id'] ? 'selected' : ''; ?>>
+                                <option value="<?php echo $member['id']; ?>" <?php echo ($task['assigned_to'] ?? '') == $member['id'] ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($member['full_name']); ?> - <?php echo htmlspecialchars($member['job_title'] ?? 'No Title'); ?> (<?php echo ucfirst($member['role']); ?>)
                                 </option>
                             <?php endforeach; ?>
@@ -459,28 +554,56 @@ try {
                     <div class="form-group">
                         <label class="form-label">Priority *</label>
                         <select class="form-select" name="priority" required>
-                            <option value="low" <?php echo ($_POST['priority'] ?? 'medium') === 'low' ? 'selected' : ''; ?>>Low</option>
-                            <option value="medium" <?php echo ($_POST['priority'] ?? 'medium') === 'medium' ? 'selected' : ''; ?>>Medium</option>
-                            <option value="high" <?php echo ($_POST['priority'] ?? 'medium') === 'high' ? 'selected' : ''; ?>>High</option>
+                            <option value="low" <?php echo $task['priority'] === 'low' ? 'selected' : ''; ?>>Low</option>
+                            <option value="medium" <?php echo $task['priority'] === 'medium' ? 'selected' : ''; ?>>Medium</option>
+                            <option value="high" <?php echo $task['priority'] === 'high' ? 'selected' : ''; ?>>High</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">Due Date</label>
-                        <input type="date" class="form-input" name="due_date" value="<?php echo $_POST['due_date'] ?? ''; ?>">
+                        <input type="date" class="form-input" name="due_date" value="<?php echo $task['due_date'] ?? ''; ?>">
                     </div>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">Estimated Hours</label>
-                    <input type="number" class="form-input" name="estimated_hours" min="0" step="0.5" value="<?php echo $_POST['estimated_hours'] ?? ''; ?>">
+                    <input type="number" class="form-input" name="estimated_hours" min="0" step="0.5" value="<?php echo $task['estimated_hours'] ?? ''; ?>">
                 </div>
+                
+                <!-- Existing Files Section -->
+                <?php if (!empty($existingFiles)): ?>
+                    <div class="existing-files">
+                        <h3><i class="fas fa-paperclip"></i> Existing Files (<?php echo count($existingFiles); ?>)</h3>
+                        <div class="file-list">
+                            <?php foreach ($existingFiles as $file): ?>
+                                <div class="file-item">
+                                    <div class="file-icon">
+                                        <i class="<?php echo $file['icon']; ?>"></i>
+                                    </div>
+                                    <div class="file-details">
+                                        <div class="file-name"><?php echo htmlspecialchars($file['original_filename']); ?></div>
+                                        <div class="file-size"><?php echo $file['formatted_size']; ?></div>
+                                    </div>
+                                    <div class="file-actions">
+                                        <a href="<?php echo htmlspecialchars($file['file_path']); ?>" target="_blank" class="btn btn-sm btn-primary" title="Download">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="deleteExistingFile(<?php echo $file['id']; ?>)" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 
                 <!-- File Upload Section -->
                 <div class="form-group">
-                    <label class="form-label">Attach Files (Optional)</label>
+                    <label class="form-label">Add More Files (Optional)</label>
                     <div class="file-upload-section">
-                        <div class="upload-area" id="upload-area-create">
+                        <div class="upload-area" id="upload-area-edit">
                             <div class="upload-prompt">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p>Drag and drop files here or click to browse</p>
@@ -488,34 +611,31 @@ try {
                             </div>
                             <input type="file" class="file-input" name="files[]" multiple accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.mp4,.avi,.mov,.wmv,.flv,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" style="display: none;">
                         </div>
-                        <div class="upload-queue" id="upload-queue-create"></div>
+                        <div class="upload-queue" id="upload-queue-edit"></div>
                     </div>
                 </div>
                 
                 <div class="form-actions">
-                    <a href="index.php" class="btn btn-back">
-                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    <a href="task-management.php" class="btn btn-back">
+                        <i class="fas fa-arrow-left"></i> Back to Tasks
+                    </a>
+                    <a href="task-detail.php?id=<?php echo $task_id; ?>" class="btn btn-info">
+                        <i class="fas fa-eye"></i> View Task
                     </a>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Create Task
+                        <i class="fas fa-save"></i> Update Task
                     </button>
                 </div>
             </form>
         <?php else: ?>
             <div class="alert alert-error">
-                <h3>Access Denied</h3>
-                <p>Your current role is '<strong><?php echo htmlspecialchars($current_user['role']); ?></strong>'. Only users with 'admin' or 'manager' roles can create tasks.</p>
-                <p>To create tasks, you need to:</p>
-                <ul>
-                    <li>Contact an administrator</li>
-                    <li>Ask them to change your role to 'manager' or 'admin'</li>
-                    <li>Or ask them to create tasks for you</li>
-                </ul>
+                <h3>Task Not Found</h3>
+                <p>The task you're trying to edit could not be found.</p>
             </div>
             
             <div class="form-actions">
-                <a href="index.php" class="btn btn-primary">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                <a href="task-management.php" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Back to Tasks
                 </a>
             </div>
         <?php endif; ?>
