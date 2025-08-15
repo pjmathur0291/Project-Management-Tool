@@ -766,3 +766,155 @@ body {
     content: "🕐 ";
     margin-right: 5px;
 }
+
+/* Tag Styling */
+.tag {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.tag.tag-removable {
+    padding-right: 20px;
+    position: relative;
+}
+
+.tag .remove-tag {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.tag .remove-tag:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+.tag-selector {
+    position: relative;
+}
+
+.tag-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.tag-dropdown.show {
+    display: block;
+}
+
+.tag-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.tag-option:hover {
+    background-color: #f8f9fa;
+}
+
+.tag-option.selected {
+    background-color: #e3f2fd;
+}
+
+.tag-search-input {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 8px;
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.tag-filter-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.tag-filter-label {
+    font-weight: 500;
+    margin-right: 10px;
+    color: #495057;
+}
+
+.clear-filters-btn {
+    background: #6c757d;
+    border: none;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.clear-filters-btn:hover {
+    background: #5a6268;
+}
+
+.task-tags, .project-tags {
+    margin-top: 8px;
+}
+
+.tag-input-container {
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 8px;
+    min-height: 40px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    cursor: text;
+}
+
+.tag-input-container:focus-within {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.tag-input {
+    border: none;
+    outline: none;
+    flex: 1;
+    min-width: 100px;
+    padding: 4px;
+}

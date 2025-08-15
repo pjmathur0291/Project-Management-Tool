@@ -167,6 +167,55 @@ function createTables($pdo) {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     ");
+    
+    // Tags table - stores all available tags
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS tags (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(50) NOT NULL UNIQUE,
+            color VARCHAR(7) DEFAULT '#007bff',
+            description TEXT,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_name (name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    
+    // Task Tags table - many-to-many relationship between tasks and tags
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS task_tags (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL,
+            tag_id INT NOT NULL,
+            added_by INT,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+            FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL,
+            UNIQUE KEY unique_task_tag (task_id, tag_id),
+            INDEX idx_task_id (task_id),
+            INDEX idx_tag_id (tag_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    
+    // Project Tags table - many-to-many relationship between projects and tags
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS project_tags (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            project_id INT NOT NULL,
+            tag_id INT NOT NULL,
+            added_by INT,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+            FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL,
+            UNIQUE KEY unique_project_tag (project_id, tag_id),
+            INDEX idx_project_id (project_id),
+            INDEX idx_tag_id (tag_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
 }
 
 // Insert sample data for demonstration
@@ -229,6 +278,25 @@ function insertSampleData($pdo) {
     $stmt = $pdo->prepare("INSERT INTO project_members (project_id, user_id, role) VALUES (?, ?, ?)");
     foreach ($members as $member) {
         $stmt->execute($member);
+    }
+    
+    // Insert sample tags
+    $tags = [
+        ['urgent', '#dc3545', 'Tasks that need immediate attention', 1],
+        ['bug', '#fd7e14', 'Bug fixes and issues', 1],
+        ['feature', '#28a745', 'New feature development', 1],
+        ['documentation', '#6f42c1', 'Documentation related tasks', 1],
+        ['testing', '#20c997', 'Testing and QA tasks', 1],
+        ['design', '#e83e8c', 'UI/UX design tasks', 1],
+        ['backend', '#6c757d', 'Backend development tasks', 1],
+        ['frontend', '#17a2b8', 'Frontend development tasks', 1],
+        ['maintenance', '#ffc107', 'System maintenance tasks', 1],
+        ['research', '#fd7e14', 'Research and investigation tasks', 1]
+    ];
+    
+    $stmt = $pdo->prepare("INSERT IGNORE INTO tags (name, color, description, created_by) VALUES (?, ?, ?, ?)");
+    foreach ($tags as $tag) {
+        $stmt->execute($tag);
     }
 }
 
