@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .test-button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Modal Test Page</h1>
+    
+    <button class="test-button" onclick="testSimpleModal()">Test Simple Modal</button>
+    <button class="test-button" onclick="testTaskModal()">Test Task Modal</button>
+    
+    <script src="assets/js/modals.js"></script>
+    <script>
+        function testSimpleModal() {
+            console.log('Testing simple modal...');
+            const modal = new Modal('Test Modal', '<p>This is a test modal</p>');
+            modal.show();
+        }
+        
+        function testTaskModal() {
+            console.log('Testing task modal...');
+            const taskFormHTML = `
+                <form id="task-form">
+                    <div class="form-group">
+                        <label>Task Title</label>
+                        <input type="text" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description"></textarea>
+                    </div>
+                    <button type="submit">Create Task</button>
+                </form>
+            `;
+            
+            const modal = new Modal('Add New Task', taskFormHTML);
+            modal.show();
+            
+            // Bind form submission
+            setTimeout(() => {
+                const form = document.getElementById('task-form');
+                if (form) {
+                    console.log('Form found, binding submit event');
+                    form.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        console.log('Form submitted!');
+                        const formData = new FormData(form);
+                        console.log('Form data:', Object.fromEntries(formData));
+                    });
+                } else {
+                    console.error('Form not found!');
+                }
+            }, 100);
+        }
+        
+        console.log('Modal test page loaded');
+    </script>
+</body>
+</html>

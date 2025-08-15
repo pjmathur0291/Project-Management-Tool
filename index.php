@@ -16,6 +16,18 @@ $current_user = [
     'full_name' => $_SESSION['full_name'],
     'role' => $_SESSION['role']
 ];
+
+// Get notification count
+$notification_count = 0;
+try {
+    require_once 'includes/NotificationManager.php';
+    $pdo = getDBConnection();
+    $notificationManager = new NotificationManager($pdo);
+    $notification_count = $notificationManager->getNotificationCount($current_user['id']);
+} catch (Exception $e) {
+    // Silently handle notification errors
+    error_log("Error getting notification count: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -26,7 +38,7 @@ $current_user = [
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body data-user-id="<?php echo $_SESSION['user_id']; ?>">
+<body data-user-id="<?php echo $_SESSION['user_id']; ?>" data-user-role="<?php echo $_SESSION['role']; ?>">
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <nav class="sidebar">
@@ -59,7 +71,18 @@ $current_user = [
                     <span id="current-section">Dashboard</span>
                 </div>
                 <div class="user-menu">
+                    <a href="notifications.php" class="notification-bell" title="View Notifications">
+                        <i class="fas fa-bell"></i>
+                        <?php if ($notification_count > 0): ?>
+                            <span class="notification-badge"><?php echo $notification_count; ?></span>
+                        <?php endif; ?>
+                    </a>
                     <span class="user-name"><?php echo htmlspecialchars($current_user['full_name']); ?> (<?php echo ucfirst($current_user['role']); ?>)</span>
+                    <?php if (in_array($current_user['role'], ['admin', 'manager'])): ?>
+                        <span class="permission-badge" title="You can create and manage tasks">✓ Task Creator</span>
+                    <?php else: ?>
+                        <span class="permission-badge restricted" title="You can only view tasks assigned to you">👁 Task Viewer</span>
+                    <?php endif; ?>
                     <button class="btn btn-secondary" id="logout-btn">Logout</button>
                 </div>
             </header>
@@ -145,10 +168,13 @@ $current_user = [
                                 <button class="btn btn-outline" data-filter="completed">Completed</button>
                             </div>
                             <?php if (in_array($current_user['role'], ['admin', 'manager'])): ?>
-                                <button class="btn btn-primary" id="add-task-btn">
+                                <a href="create-task.php" class="btn btn-primary">
                                     <i class="fas fa-plus"></i> New Task
-                                </button>
+                                </a>
                             <?php endif; ?>
+                            <a href="task-management.php<?php echo (in_array($current_user['role'], ['admin','manager'])) ? '' : '?mine=1'; ?>" class="btn btn-outline">
+                                <i class="fas fa-tasks"></i> Task Management
+                            </a>
                         </div>
                     </div>
                     <div class="tasks-container" id="tasks-container">

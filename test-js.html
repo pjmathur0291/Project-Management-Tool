@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Test - Project Management Tool</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .test-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .btn {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1><i class="fas fa-tasks"></i> JavaScript & CSS Test</h1>
+        
+        <div class="test-section">
+            <h3>CSS Loading Test</h3>
+            <div id="css-test" class="status info">
+                Testing CSS styles...
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>JavaScript Loading Test</h3>
+            <div id="js-test" class="status info">
+                Testing JavaScript...
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Modal System Test</h3>
+            <button class="btn btn-primary" onclick="testModal()">Test Modal</button>
+            <button class="btn btn-secondary" onclick="testConfirm()">Test Confirm Dialog</button>
+            <button class="btn btn-success" onclick="testAlert()">Test Alert</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>API Test</h3>
+            <button class="btn btn-primary" onclick="testAPI()">Test API Calls</button>
+            <div id="api-results"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Navigation</h3>
+            <a href="login.php" class="btn btn-primary">Go to Login</a>
+            <a href="test-app.php" class="btn btn-secondary">System Test</a>
+            <a href="index.php" class="btn btn-success">Dashboard</a>
+        </div>
+    </div>
+
+    <script src="assets/js/modals.js"></script>
+    <script src="assets/js/app.js"></script>
+    
+    <script>
+        // Test CSS loading
+        function testCSS() {
+            const testDiv = document.getElementById('css-test');
+            const computedStyle = window.getComputedStyle(testDiv);
+            
+            if (computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' && 
+                computedStyle.backgroundColor !== 'transparent') {
+                testDiv.className = 'status success';
+                testDiv.innerHTML = '✅ CSS is loading properly';
+            } else {
+                testDiv.className = 'status error';
+                testDiv.innerHTML = '❌ CSS may not be loading properly';
+            }
+        }
+        
+        // Test JavaScript loading
+        function testJS() {
+            const testDiv = document.getElementById('js-test');
+            
+            if (typeof Modal !== 'undefined' && typeof ProjectManagementApp !== 'undefined') {
+                testDiv.className = 'status success';
+                testDiv.innerHTML = '✅ JavaScript is loading properly<br>Modal class: ' + (typeof Modal) + '<br>App class: ' + (typeof ProjectManagementApp);
+            } else {
+                testDiv.className = 'status error';
+                testDiv.innerHTML = '❌ JavaScript may not be loading properly<br>Modal class: ' + (typeof Modal) + '<br>App class: ' + (typeof ProjectManagementApp);
+            }
+        }
+        
+        // Test modal system
+        function testModal() {
+            const modal = new Modal('Test Modal', '<p>This is a test modal to verify the modal system is working.</p><button class="btn btn-primary" onclick="Modal.close()">Close</button>');
+            modal.show();
+        }
+        
+        function testConfirm() {
+            Modal.confirm(
+                'Are you sure you want to proceed?',
+                () => alert('Confirmed!'),
+                () => alert('Cancelled!')
+            );
+        }
+        
+        function testAlert() {
+            Modal.alert('This is a test alert message!');
+        }
+        
+        // Test API calls
+        async function testAPI() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="status info">Testing APIs...</div>';
+            
+            try {
+                // Test dashboard API
+                const dashboardResponse = await fetch('api/dashboard.php');
+                const dashboardData = await dashboardResponse.json();
+                
+                // Test projects API
+                const projectsResponse = await fetch('api/projects.php');
+                const projectsData = await projectsResponse.json();
+                
+                // Test tasks API
+                const tasksResponse = await fetch('api/tasks.php');
+                const tasksData = await tasksResponse.json();
+                
+                // Test team API
+                const teamResponse = await fetch('api/team.php');
+                const teamData = await teamResponse.json();
+                
+                let results = '<div class="status success">✅ API Tests Results:</div>';
+                results += '<ul>';
+                results += '<li>Dashboard API: ' + (dashboardData.success ? '✅ Working' : '❌ Failed') + '</li>';
+                results += '<li>Projects API: ' + (projectsData.success ? '✅ Working' : '❌ Failed') + '</li>';
+                results += '<li>Tasks API: ' + (tasksData.success ? '✅ Working' : '❌ Failed') + '</li>';
+                results += '<li>Team API: ' + (teamData.success ? '✅ Working' : '❌ Failed') + '</li>';
+                results += '</ul>';
+                
+                resultsDiv.innerHTML = results;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = '<div class="status error">❌ API Test Failed: ' + error.message + '</div>';
+            }
+        }
+        
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(testCSS, 100);
+            setTimeout(testJS, 200);
+        });
+    </script>
+</body>
+</html>

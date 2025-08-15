@@ -3,15 +3,22 @@ class ProjectManagementApp {
     constructor() {
         this.currentSection = 'dashboard';
         this.currentTaskFilter = 'all'; // Store current filter state
+        console.log('ProjectManagementApp constructor called'); // Debug log
         this.init();
     }
 
     init() {
-        this.bindEvents();
-        this.loadDashboardStats();
-        this.loadProjects();
-        this.loadTasks();
-        this.loadTeamMembers();
+        console.log('Initializing ProjectManagementApp...'); // Debug log
+        try {
+            this.bindEvents();
+            this.loadDashboardStats();
+            this.loadProjects();
+            this.loadTasks();
+            this.loadTeamMembers();
+            console.log('ProjectManagementApp initialized successfully'); // Debug log
+        } catch (error) {
+            console.error('Error initializing ProjectManagementApp:', error);
+        }
     }
 
     bindEvents() {
@@ -34,9 +41,15 @@ class ProjectManagementApp {
 
         const addTaskBtn = document.getElementById('add-task-btn');
         if (addTaskBtn) {
-            addTaskBtn.addEventListener('click', () => {
+            console.log('Add task button found, binding click event'); // Debug log
+            addTaskBtn.addEventListener('click', (e) => {
+                console.log('Add task button clicked!'); // Debug log
+                console.log('Event:', e); // Debug log
+                console.log('Button element:', addTaskBtn); // Debug log
                 this.showAddTaskModal();
             });
+        } else {
+            console.error('Add task button not found!'); // Debug log
         }
 
         const addMemberBtn = document.getElementById('add-member-btn');
@@ -212,12 +225,7 @@ class ProjectManagementApp {
                     <span class="project-status status-${project.status}">${this.formatStatus(project.status)}</span>
                 </div>
                 
-                <div class="project-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${project.progress}%"></div>
-                    </div>
-                    <small>${project.progress}% Complete</small>
-                </div>
+
                 
                 <div class="project-meta">
                     <div>
@@ -558,28 +566,54 @@ class ProjectManagementApp {
     }
 
     async showAddTaskModal() {
-        const modal = new Modal('Add New Task', this.getTaskFormHTML());
-        modal.show();
+        console.log('showAddTaskModal called'); // Debug log
         
-        // Populate projects dropdown
-        await this.populateTaskFormDropdowns();
+        // Check if user has permission
+        const currentUserRole = document.body.getAttribute('data-user-role');
+        console.log('Current user role:', currentUserRole);
         
-        // Wait a moment for the modal to be fully rendered
-        setTimeout(() => {
-            const form = document.getElementById('task-form');
-            if (form) {
-                console.log('Task form found, binding submit event'); // Debug log
-                
-                // Bind form submission
-                form.addEventListener('submit', (e) => {
-                    console.log('Task form submit event triggered'); // Debug log
-                    e.preventDefault();
-                    this.submitTaskForm();
-                });
-            } else {
-                console.error('Task form not found after modal creation!'); // Debug log
-            }
-        }, 100);
+        if (!currentUserRole || !['admin', 'manager'].includes(currentUserRole)) {
+            console.error('User does not have permission to create tasks');
+            this.showMessage('You do not have permission to create tasks. Only admins and managers can create tasks.', 'error');
+            return;
+        }
+        
+        try {
+            const modal = new Modal('Add New Task', this.getTaskFormHTML());
+            console.log('Modal created:', modal); // Debug log
+            modal.show();
+            console.log('Modal shown'); // Debug log
+            
+            // Populate projects dropdown
+            await this.populateTaskFormDropdowns();
+            console.log('Dropdowns populated'); // Debug log
+            
+            // Wait a moment for the modal to be fully rendered
+            setTimeout(() => {
+                const form = document.getElementById('task-form');
+                console.log('Looking for task form, found:', form); // Debug log
+                if (form) {
+                    console.log('Task form found, binding submit event'); // Debug log
+                    
+                    // Bind form submission
+                    form.addEventListener('submit', (e) => {
+                        console.log('Task form submit event triggered'); // Debug log
+                        e.preventDefault();
+                        this.submitTaskForm();
+                    });
+                } else {
+                    console.error('Task form not found after modal creation!'); // Debug log
+                    // Try to find any form in the modal
+                    const modalBody = document.querySelector('.modal-body');
+                    if (modalBody) {
+                        console.log('Modal body content:', modalBody.innerHTML);
+                    }
+                }
+            }, 100);
+        } catch (error) {
+            console.error('Error in showAddTaskModal:', error);
+            this.showMessage('Error opening task creation modal: ' + error.message, 'error');
+        }
     }
 
     async populateTaskFormDropdowns() {
@@ -895,23 +929,16 @@ class ProjectManagementApp {
                     <label class="form-label">Job Title</label>
                     <select class="form-select" name="job_title" required>
                         <option value="Account Manager">Account Manager</option>
-                        <option value="Developer (Manager)">Developer (Manager)</option>
-                        <option value="Graphic Designer (Manager)">Graphic Designer (Manager)</option>
+                        <option value="Developer">Developer</option>
                         <option value="Graphic Designer">Graphic Designer</option>
                         <option value="Social Media Executive">Social Media Executive</option>
-                        <option value="Video Editor (Manager)">Video Editor (Manager)</option>
                         <option value="Video Editor">Video Editor</option>
-                        <option value="UI/UX (Manager)">UI/UX (Manager)</option>
                         <option value="UI/UX">UI/UX</option>
                         <option value="Content Writer">Content Writer</option>
                         <option value="HR">HR</option>
-                        <option value="Sales and Marketing (Manager)">Sales and Marketing (Manager)</option>
                         <option value="Sales and Marketing">Sales and Marketing</option>
-                        <option value="SEO (Manager)">SEO (Manager)</option>
                         <option value="SEO">SEO</option>
-                        <option value="Google Ads (Manager)">Google Ads (Manager)</option>
                         <option value="Google Ads">Google Ads</option>
-                        <option value="Meta Ads (Manager)">Meta Ads (Manager)</option>
                         <option value="Meta Ads">Meta Ads</option>
                     </select>
                 </div>
@@ -1023,6 +1050,7 @@ class ProjectManagementApp {
         console.log('submitTaskForm called'); // Debug log
         
         const form = document.getElementById('task-form');
+        console.log('Looking for task form in submitTaskForm, found:', form); // Debug log
         if (!form) {
             console.error('Task form not found!'); // Debug log
             this.showMessage('Error: Task form not found', 'error');
@@ -1035,11 +1063,13 @@ class ProjectManagementApp {
         console.log('Task form data:', Object.fromEntries(formData));
         
         try {
+            console.log('Sending request to api/tasks.php'); // Debug log
             const response = await fetch('api/tasks.php', {
                 method: 'POST',
                 body: formData
             });
             
+            console.log('Response received:', response); // Debug log
             const data = await response.json();
             console.log('Task API response:', data); // Debug log
             
@@ -1506,7 +1536,226 @@ class ProjectManagementApp {
     }
 }
 
+// Tag Management Functions
+let allTags = [];
+
+// Load all tags
+async function loadTags() {
+    try {
+        const response = await fetch('api/tags.php?action=list');
+        const result = await response.json();
+        if (result.success) {
+            allTags = result.data;
+        }
+    } catch (error) {
+        console.error('Error loading tags:', error);
+    }
+}
+
+// Create tag element
+function createTagElement(tag, options = {}) {
+    const tagEl = document.createElement('span');
+    tagEl.className = 'tag';
+    tagEl.style.backgroundColor = tag.color;
+    tagEl.textContent = tag.name;
+    tagEl.dataset.tagId = tag.id;
+    
+    if (options.removable) {
+        tagEl.classList.add('tag-removable');
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'remove-tag';
+        removeBtn.innerHTML = '×';
+        removeBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (options.onRemove) {
+                options.onRemove(tag.id);
+            }
+        };
+        tagEl.appendChild(removeBtn);
+    }
+    
+    return tagEl;
+}
+
+// Create tag selector component
+function createTagSelector(container, options = {}) {
+    const selectedTags = options.selectedTags || [];
+    const onChange = options.onChange || (() => {});
+    
+    container.innerHTML = `
+        <div class="tag-input-container">
+            <input type="text" class="tag-input" placeholder="Type to search tags...">
+        </div>
+        <div class="tag-dropdown">
+            <input type="text" class="tag-search-input" placeholder="Search tags...">
+            <div class="tag-options"></div>
+        </div>
+    `;
+    
+    const inputContainer = container.querySelector('.tag-input-container');
+    const input = container.querySelector('.tag-input');
+    const dropdown = container.querySelector('.tag-dropdown');
+    const searchInput = container.querySelector('.tag-search-input');
+    const optionsContainer = container.querySelector('.tag-options');
+    
+    // Render selected tags
+    function renderSelectedTags() {
+        // Clear existing tags
+        inputContainer.querySelectorAll('.tag').forEach(tag => tag.remove());
+        
+        // Add selected tags
+        selectedTags.forEach(tagId => {
+            const tag = allTags.find(t => t.id == tagId);
+            if (tag) {
+                const tagEl = createTagElement(tag, {
+                    removable: true,
+                    onRemove: (removedTagId) => {
+                        const index = selectedTags.indexOf(removedTagId);
+                        if (index > -1) {
+                            selectedTags.splice(index, 1);
+                            renderSelectedTags();
+                            renderOptions();
+                            onChange(selectedTags);
+                        }
+                    }
+                });
+                inputContainer.insertBefore(tagEl, input);
+            }
+        });
+    }
+    
+    // Render available options
+    function renderOptions(searchTerm = '') {
+        optionsContainer.innerHTML = '';
+        
+        const filteredTags = allTags.filter(tag => {
+            const matchesSearch = tag.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const notSelected = !selectedTags.includes(tag.id.toString());
+            return matchesSearch && notSelected;
+        });
+        
+        filteredTags.forEach(tag => {
+            const option = document.createElement('div');
+            option.className = 'tag-option';
+            option.innerHTML = `
+                <span class="tag" style="background-color: ${tag.color}">${tag.name}</span>
+                <span class="text-muted">${tag.description || ''}</span>
+            `;
+            option.onclick = () => {
+                selectedTags.push(tag.id.toString());
+                renderSelectedTags();
+                renderOptions();
+                onChange(selectedTags);
+                dropdown.classList.remove('show');
+                input.value = '';
+                searchInput.value = '';
+            };
+            optionsContainer.appendChild(option);
+        });
+    }
+    
+    // Event listeners
+    input.addEventListener('focus', () => {
+        dropdown.classList.add('show');
+        renderOptions();
+    });
+    
+    inputContainer.addEventListener('click', () => {
+        input.focus();
+    });
+    
+    searchInput.addEventListener('input', (e) => {
+        renderOptions(e.target.value);
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+    
+    // Initial render
+    renderSelectedTags();
+    
+    return {
+        getSelectedTags: () => selectedTags,
+        setSelectedTags: (tags) => {
+            selectedTags.length = 0;
+            selectedTags.push(...tags);
+            renderSelectedTags();
+            renderOptions();
+        }
+    };
+}
+
+// Load task tags
+async function loadTaskTags(taskId) {
+    try {
+        const response = await fetch(`api/tags.php?action=task&task_id=${taskId}`);
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        }
+    } catch (error) {
+        console.error('Error loading task tags:', error);
+    }
+    return [];
+}
+
+// Update task tags
+async function updateTaskTags(taskId, tagIds) {
+    try {
+        const response = await fetch('api/tags.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'update_task_tags',
+                task_id: taskId,
+                tag_ids: tagIds
+            })
+        });
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        console.error('Error updating task tags:', error);
+        return { success: false, message: 'Network error' };
+    }
+}
+
+// Filter tasks by tags
+async function filterTasksByTags(tagIds, additionalFilters = {}) {
+    try {
+        const params = new URLSearchParams({
+            action: 'search',
+            tag_ids: tagIds.join(','),
+            ...additionalFilters
+        });
+        
+        const response = await fetch(`api/tags.php?${params}`);
+        const result = await response.json();
+        if (result.success) {
+            return result.data;
+        }
+    } catch (error) {
+        console.error('Error filtering tasks by tags:', error);
+    }
+    return [];
+}
+
+// Render tags for a task or project
+function renderTags(tags, container) {
+    container.innerHTML = '';
+    tags.forEach(tag => {
+        const tagEl = createTagElement(tag);
+        container.appendChild(tagEl);
+    });
+}
+
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new ProjectManagementApp();
+    loadTags(); // Load tags when the app starts
 });

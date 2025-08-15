@@ -102,6 +102,7 @@ body {
     color: #333;
 }
 
+/* User Menu and Permissions */
 .user-menu {
     display: flex;
     align-items: center;
@@ -109,8 +110,29 @@ body {
 }
 
 .user-name {
+    color: #333;
     font-weight: 500;
-    color: #666;
+}
+
+.permission-badge {
+    background: #d4edda;
+    color: #155724;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid #c3e6cb;
+}
+
+.permission-badge.restricted {
+    background: #fff3cd;
+    color: #856404;
+    border-color: #ffeaa7;
+}
+
+.permission-badge:hover {
+    opacity: 0.8;
+    cursor: help;
 }
 
 /* Content Container */
@@ -347,23 +369,7 @@ body {
 .status-completed { background: #cce5ff; color: #004085; }
 .status-pending { background: #fff3cd; color: #856404; }
 
-.project-progress {
-    margin: 15px 0;
-}
 
-.progress-bar {
-    width: 100%;
-    height: 8px;
-    background: #e9ecef;
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    transition: width 0.3s ease;
-}
 
 .project-meta {
     display: flex;
@@ -765,4 +771,196 @@ body {
 .no-deadline::before {
     content: "🕐 ";
     margin-right: 5px;
+}
+
+<<<<<<< Current (Your changes)
+/* Notification Bell */
+.notification-bell {
+    position: relative;
+    color: #666;
+    text-decoration: none;
+    font-size: 1.2rem;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.notification-bell:hover {
+    color: #007bff;
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+=======
+/* Tag Styling */
+.tag {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.tag.tag-removable {
+    padding-right: 20px;
+    position: relative;
+}
+
+.tag .remove-tag {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.tag .remove-tag:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+.tag-selector {
+    position: relative;
+}
+
+.tag-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.tag-dropdown.show {
+    display: block;
+}
+
+.tag-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.tag-option:hover {
+    background-color: #f8f9fa;
+}
+
+.tag-option.selected {
+    background-color: #e3f2fd;
+}
+
+.tag-search-input {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 8px;
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+.tag-filter-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.tag-filter-label {
+    font-weight: 500;
+    margin-right: 10px;
+    color: #495057;
+}
+
+.clear-filters-btn {
+    background: #6c757d;
+    border: none;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.clear-filters-btn:hover {
+    background: #5a6268;
+}
+
+.task-tags, .project-tags {
+    margin-top: 8px;
+}
+
+.tag-input-container {
+    position: relative;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 8px;
+    min-height: 40px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    cursor: text;
+}
+
+.tag-input-container:focus-within {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.tag-input {
+    border: none;
+    outline: none;
+    flex: 1;
+    min-width: 100px;
+    padding: 4px;
+>>>>>>> Incoming (Background Agent changes)
 }

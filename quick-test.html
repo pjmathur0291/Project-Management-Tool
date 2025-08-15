@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Modal Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-btn { 
+            padding: 15px 30px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            margin: 10px; 
+        }
+        .test-btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Quick Modal Test</h1>
+    <p>Click the button below to test if modals are working:</p>
+    
+    <button class="test-btn" onclick="testModal()">Test Modal</button>
+    <button class="test-btn" onclick="testTaskForm()">Test Task Form</button>
+    
+    <script src="assets/js/modals.js"></script>
+    <script>
+        function testModal() {
+            console.log('Testing basic modal...');
+            try {
+                const modal = new Modal('Test Modal', '<p>This is a test modal. If you can see this, modals are working!</p>');
+                modal.show();
+                console.log('Modal created and shown successfully');
+            } catch (error) {
+                console.error('Error creating modal:', error);
+                alert('Modal error: ' + error.message);
+            }
+        }
+        
+        function testTaskForm() {
+            console.log('Testing task form modal...');
+            try {
+                const taskFormHTML = `
+                    <form id="test-task-form">
+                        <div style="margin-bottom: 15px;">
+                            <label>Task Title:</label><br>
+                            <input type="text" name="title" value="Test Task" style="width: 100%; padding: 8px; margin-top: 5px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label>Description:</label><br>
+                            <textarea name="description" style="width: 100%; padding: 8px; margin-top: 5px;">Test description</textarea>
+                        </div>
+                        <button type="submit" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px;">Submit Test</button>
+                    </form>
+                `;
+                
+                const modal = new Modal('Test Task Form', taskFormHTML);
+                modal.show();
+                
+                // Bind form submission
+                setTimeout(() => {
+                    const form = document.getElementById('test-task-form');
+                    if (form) {
+                        console.log('Form found, binding submit event');
+                        form.addEventListener('submit', (e) => {
+                            e.preventDefault();
+                            console.log('Form submitted successfully!');
+                            alert('Form submission working!');
+                            modal.close();
+                        });
+                    } else {
+                        console.error('Form not found!');
+                        alert('Form not found in modal!');
+                    }
+                }, 100);
+                
+                console.log('Task form modal created and shown successfully');
+            } catch (error) {
+                console.error('Error creating task form modal:', error);
+                alert('Task form modal error: ' + error.message);
+            }
+        }
+        
+        console.log('Quick test page loaded');
+        console.log('Modal class available:', typeof Modal !== 'undefined');
+    </script>
+</body>
+</html>

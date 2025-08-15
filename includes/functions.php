@@ -64,7 +64,16 @@ function getAllTasks() {
     $userId = $_SESSION['user_id'] ?? null;
     $userRole = $_SESSION['role'] ?? null;
     
-    if ($userRole === 'admin' || $userRole === 'manager') {
+    // If no session or user info, show all tasks (for API calls)
+    if (!$userId || !$userRole) {
+        $stmt = $pdo->query("
+            SELECT t.*, p.name as project_name, u.full_name as assignee_name 
+            FROM tasks t 
+            LEFT JOIN projects p ON t.project_id = p.id 
+            LEFT JOIN users u ON t.assigned_to = u.id 
+            ORDER BY t.created_at DESC
+        ");
+    } else if ($userRole === 'admin' || $userRole === 'manager') {
         // Admin and managers see all tasks
         $stmt = $pdo->query("
             SELECT t.*, p.name as project_name, u.full_name as assignee_name 
