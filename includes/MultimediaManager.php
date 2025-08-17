@@ -19,7 +19,19 @@ class MultimediaManager {
         $stmt = $this->pdo->query("SELECT setting_key, setting_value FROM system_settings");
         $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
-        $this->uploadDir = $settings['upload_directory'] ?? 'uploads';
+        $uploadDirSetting = $settings['upload_directory'] ?? 'uploads';
+        // Make sure we have an absolute path
+        if (!pathinfo($uploadDirSetting, PATHINFO_DIRNAME)) {
+            // If it's a relative path, make it absolute
+            $this->uploadDir = realpath(dirname(__FILE__) . '/../' . $uploadDirSetting);
+        } else {
+            $this->uploadDir = realpath($uploadDirSetting);
+        }
+        
+        // Fallback if realpath fails
+        if (!$this->uploadDir) {
+            $this->uploadDir = dirname(__FILE__) . '/../' . $uploadDirSetting;
+        }
         
         // Get server limits
         $uploadMaxFilesize = $this->getBytes(ini_get('upload_max_filesize'));
