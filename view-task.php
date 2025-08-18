@@ -2,6 +2,8 @@
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once 'includes/MultimediaManager.php';
+require_once 'includes/FileViewer.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -52,6 +54,38 @@ if (!$task_id) {
             if (!$can_view) {
                 $error_message = 'You do not have permission to view this task.';
                 $task = null;
+            } else {
+                // Load multimedia files for this task so assignees can see manager uploads
+                try {
+                    $multimediaManager = new MultimediaManager($pdo);
+                    $fileViewer = new FileViewer($multimediaManager);
+                    $files = $multimediaManager->getFilesByEntity('task', $task_id);
+                    
+                    $formattedFiles = [];
+                    foreach ($files as $file) {
+                        $formattedFiles[] = [
+                            'id' => $file['id'],
+                            'filename' => $file['filename'],
+                            'original_filename' => $file['original_filename'],
+                            'file_path' => $file['file_path'],
+                            'file_type' => $file['file_type'],
+                            'file_size' => $file['file_size'],
+                            'formatted_size' => $multimediaManager->formatFileSize($file['file_size']),
+                            'mime_type' => $file['mime_type'],
+                            'description' => $file['description'],
+                            'uploaded_by' => $file['uploaded_by'],
+                            'uploaded_by_name' => $file['uploaded_by_name'],
+                            'created_at' => $file['created_at'],
+                            'icon' => $multimediaManager->getFileIcon($file['file_type']),
+                            'is_image' => $multimediaManager->isImage($file['file_type']),
+                            'is_video' => $multimediaManager->isVideo($file['file_type']),
+                            'is_document' => $multimediaManager->isDocument($file['file_type'])
+                        ];
+                    }
+                } catch (Exception $e) {
+                    // If multimedia loading fails, continue without blocking task view
+                    $formattedFiles = [];
+                }
             }
         }
     } catch (Exception $e) {
@@ -455,6 +489,28 @@ if (!$task_id) {
                                 </div>
                             <?php endif; ?>
                         </div>
+                    </div>
+
+                    <!-- Files & Media visible to assignee and managers -->
+                    <div class="task-section">
+                        <h2 class="section-title">Files & Media</h2>
+                        <?php if (!empty($formattedFiles)): ?>
+                            <div class="info-grid" style="grid-template-columns: 1fr;">
+                                <div>
+                                    <?php echo $fileViewer->renderFileGallery($formattedFiles, [
+                                        'show_delete' => in_array($current_user['role'], ['admin','manager']) || ($task['assigned_to'] == $current_user['id']),
+                                        'current_user_id' => $current_user['id'],
+                                        'entity_type' => 'task',
+                                        'entity_id' => $task_id
+                                    ]); ?>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div class="info-item">
+                                <div class="info-label">Files</div>
+                                <div class="info-value">No files uploaded yet.</div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 

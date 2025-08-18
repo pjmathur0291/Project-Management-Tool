@@ -9,6 +9,8 @@ class MultimediaManager {
     private $videoMaxDuration;
     private $enableThumbnails;
     private $thumbnailSize;
+    // Web path base (what goes into DB for browser access), e.g., 'uploads'
+    private $uploadUrlBase;
 
     public function __construct($pdo) {
         $this->pdo = $pdo;
@@ -20,6 +22,8 @@ class MultimediaManager {
         $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
         $uploadDirSetting = $settings['upload_directory'] ?? 'uploads';
+        // Web URL base to store in DB (relative to web root)
+        $this->uploadUrlBase = trim($uploadDirSetting, '/');
         // Make sure we have an absolute path
         if (!pathinfo($uploadDirSetting, PATHINFO_DIRNAME)) {
             // If it's a relative path, make it absolute
@@ -81,10 +85,13 @@ class MultimediaManager {
             
             // Determine upload directory based on file type
             $fileType = $this->getFileType($extension);
-            $uploadPath = $this->uploadDir . '/' . $fileType . '/' . $filename;
+            // Build absolute filesystem paths and web-relative paths
+            $absoluteDir = rtrim($this->uploadDir, '/'). '/' . $fileType;
+            $absolutePath = $absoluteDir . '/' . $filename;
+            $relativePath = $this->uploadUrlBase . '/' . $fileType . '/' . $filename;
             
             // Create directory if it doesn't exist
-            $dir = dirname($uploadPath);
+            $dir = $absoluteDir;
             if (!is_dir($dir)) {
                 if (!mkdir($dir, 0777, true)) {
                     return ['success' => false, 'message' => 'Failed to create upload directory'];
@@ -99,7 +106,7 @@ class MultimediaManager {
             }
 
             // Move uploaded file
-            if (!move_uploaded_file($file['tmp_name'], $uploadPath)) {
+            if (!move_uploaded_file($file['tmp_name'], $absolutePath)) {
                 $error = error_get_last();
                 return ['success' => false, 'message' => 'Failed to move uploaded file: ' . ($error['message'] ?? 'Unknown error')];
             }
@@ -107,17 +114,17 @@ class MultimediaManager {
             // Generate thumbnail for images
             $thumbnailPath = null;
             if ($fileType === 'images' && $this->enableThumbnails) {
-                $thumbnailPath = $this->generateThumbnail($uploadPath, $filename);
+                $thumbnailPath = $this->generateThumbnail($absolutePath, $filename);
             }
 
             // Resize image if needed
             if ($fileType === 'images') {
-                $this->resizeImage($uploadPath);
+                $this->resizeImage($absolutePath);
             }
 
             // Get file info
-            $fileSize = filesize($uploadPath);
-            $mimeType = mime_content_type($uploadPath);
+            $fileSize = filesize($absolutePath);
+            $mimeType = mime_content_type($absolutePath);
 
             // Save to database
             $stmt = $this->pdo->prepare("
@@ -130,7 +137,7 @@ class MultimediaManager {
             $stmt->execute([
                 $filename,
                 $file['name'],
-                $uploadPath,
+                $relativePath,
                 $fileType,
                 $fileSize,
                 $mimeType,
@@ -148,7 +155,7 @@ class MultimediaManager {
                 'file_id' => $fileId,
                 'filename' => $filename,
                 'original_filename' => $file['name'],
-                'file_path' => $uploadPath,
+                'file_path' => $relativePath,
                 'thumbnail_path' => $thumbnailPath,
                 'file_size' => $fileSize,
                 'file_type' => $fileType

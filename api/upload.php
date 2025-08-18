@@ -35,11 +35,15 @@ try {
 
             // Validate entity exists
             $entityExists = false;
+            $taskAssigneeId = null; // used for permission checks on tasks
             switch ($entityType) {
                 case 'task':
-                    $stmt = $pdo->prepare("SELECT id FROM tasks WHERE id = ?");
+                    $stmt = $pdo->prepare("SELECT id, assigned_to FROM tasks WHERE id = ?");
                     $stmt->execute([$entityId]);
-                    $entityExists = $stmt->fetch() !== false;
+                    if ($row = $stmt->fetch()) {
+                        $entityExists = true;
+                        $taskAssigneeId = $row['assigned_to'];
+                    }
                     break;
                 case 'project':
                     $stmt = $pdo->prepare("SELECT id FROM projects WHERE id = ?");
@@ -56,6 +60,24 @@ try {
             if (!$entityExists) {
                 $response = ['success' => false, 'message' => 'Entity not found'];
                 break;
+            }
+
+            // Authorization: allow admins/managers to upload to any task; members only to their assigned tasks
+            $currentUserId = $_SESSION['user_id'];
+            $currentUserRole = $_SESSION['role'] ?? 'member';
+            if ($entityType === 'task') {
+                $isPrivileged = in_array($currentUserRole, ['admin', 'manager'], true);
+                $isAssignee = ($taskAssigneeId !== null && (int)$taskAssigneeId === (int)$currentUserId);
+                if (!$isPrivileged && !$isAssignee) {
+                    $response = ['success' => false, 'message' => "You don't have permission to upload to this task."];
+                    break;
+                }
+            } else {
+                // For non-task entities, restrict to admins/managers for now
+                if (!in_array($currentUserRole, ['admin', 'manager'], true)) {
+                    $response = ['success' => false, 'message' => 'Only admins or managers can upload to this entity type'];
+                    break;
+                }
             }
 
             // Check if file was uploaded

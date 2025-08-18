@@ -17,11 +17,17 @@ $current_user = [
     'role' => $_SESSION['role']
 ];
 
-// Get available tasks
+// Get available tasks (admins/managers: all; members: only assigned)
 $tasks = [];
 try {
     $pdo = getDBConnection();
-    $stmt = $pdo->query("SELECT id, title, status FROM tasks ORDER BY created_at DESC LIMIT 10");
+    if (in_array($current_user['role'], ['admin', 'manager'], true)) {
+        $stmt = $pdo->prepare("SELECT id, title, status FROM tasks ORDER BY created_at DESC LIMIT 50");
+        $stmt->execute();
+    } else {
+        $stmt = $pdo->prepare("SELECT id, title, status FROM tasks WHERE assigned_to = ? ORDER BY created_at DESC LIMIT 50");
+        $stmt->execute([$current_user['id']]);
+    }
     $tasks = $stmt->fetchAll();
 } catch (Exception $e) {
     $error_message = 'Database error: ' . $e->getMessage();
