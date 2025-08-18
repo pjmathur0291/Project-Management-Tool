@@ -512,6 +512,19 @@ if (!$task_id) {
                             </div>
                         <?php endif; ?>
                     </div>
+
+                    <!-- Discussion -->
+                    <div class="task-section" id="discussion">
+                        <h2 class="section-title">Discussion</h2>
+                        <div id="comments-list" class="info-grid" style="grid-template-columns: 1fr; gap: 12px;"></div>
+                        <form id="comment-form" style="margin-top: 12px;">
+                            <input type="hidden" name="task_id" value="<?php echo (int)$task_id; ?>">
+                            <textarea name="content" class="task-description" rows="3" placeholder="Write a message..." required></textarea>
+                            <div style="margin-top: 10px; text-align: right;">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
                 
                 <div class="task-actions">
@@ -576,5 +589,55 @@ if (!$task_id) {
             </div>
         <?php endif; ?>
     </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const taskId = <?php echo (int)$task_id; ?>;
+    const listEl = document.getElementById('comments-list');
+    const formEl = document.getElementById('comment-form');
+
+    function esc(html){ const div=document.createElement('div'); div.textContent=html; return div.innerHTML; }
+
+    function renderComment(c){
+        const who = esc(c.full_name || c.username || ('User #' + c.user_id));
+        const when = new Date(c.created_at.replace(' ', 'T'));
+        const item = document.createElement('div');
+        item.className = 'info-item';
+        item.innerHTML = `<div class="info-label">${who} <span style="font-weight: normal; color:#888;">${when.toLocaleString()}</span></div>
+                          <div class="info-value">${esc(c.content)}</div>`;
+        return item;
+    }
+
+    async function loadComments(){
+        listEl.innerHTML = '';
+        try{
+            const res = await fetch(`api/comments.php?task_id=${taskId}`);
+            const data = await res.json();
+            if(!data.success){ listEl.innerHTML = `<div class='info-item'><div class='info-value'>${esc(data.message||'Failed to load comments')}</div></div>`; return; }
+            if(!data.comments || data.comments.length===0){ listEl.innerHTML = `<div class='info-item'><div class='info-value'>No messages yet.</div></div>`; return; }
+            data.comments.forEach(c=> listEl.appendChild(renderComment(c)));
+        }catch(e){ listEl.innerHTML = `<div class='info-item'><div class='info-value'>Network error loading comments</div></div>`; }
+    }
+
+    formEl.addEventListener('submit', async function(e){
+        e.preventDefault();
+        const fd = new FormData(formEl);
+        const btn = formEl.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try{
+            const res = await fetch('api/comments.php', { method: 'POST', body: fd });
+            const data = await res.json();
+            if(data.success && data.comment){
+                formEl.reset();
+                listEl.appendChild(renderComment(data.comment));
+            } else {
+                alert(data.message || 'Failed to post message');
+            }
+        }catch(err){ alert('Network error posting message'); }
+        finally{ btn.disabled = false; }
+    });
+
+    loadComments();
+});
+</script>
 </body>
 </html>

@@ -21,8 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'complete' && $task_id) {
         try {
             $pdo = getDBConnection();
-            $stmt = $pdo->prepare("UPDATE tasks SET status = 'completed' WHERE id = ?");
-            if ($stmt->execute([$task_id])) {
+            // Only admins/managers can complete tasks via this endpoint
+            if (!in_array($current_user['role'], ['admin', 'manager'])) {
+                throw new Exception('Permission denied');
+            }
+            $stmt = $pdo->prepare("UPDATE tasks SET status = 'completed', completed_at = NOW(), completed_by = ? WHERE id = ?");
+            if ($stmt->execute([$current_user['id'], $task_id])) {
                 $success_message = 'Task marked as completed!';
             } else {
                 $error_message = 'Failed to update task status.';

@@ -89,6 +89,37 @@ try {
     <title>Task Details - <?php echo htmlspecialchars($task['title']); ?></title>
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* UI polish for Task Details */
+        .content-container { max-width: 1200px; margin: 0 auto; }
+        .task-detail-container { background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); overflow: hidden; }
+        .task-header { display: flex; align-items: center; justify-content: space-between; padding: 26px 28px; background: linear-gradient(135deg, #6a82fb 0%, #a777e3 100%); color: #fff; }
+        .task-header h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: .2px; }
+        .task-status .status-badge { background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.3); padding: 6px 12px; border-radius: 20px; font-weight: 600; }
+        .task-content { padding: 22px 24px; }
+        .summary-chips { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0 18px; }
+        .chip { display: inline-flex; align-items: center; gap: 8px; background: #f5f7fb; border: 1px solid #e6e9f2; color: #374151; padding: 8px 12px; border-radius: 12px; font-size: .92rem; }
+        .chip i { color: #6a82fb; }
+        .task-info-grid { display: grid; grid-template-columns: 1.6fr .8fr; gap: 24px; }
+        .task-description { background: #f9fafc; border: 1px solid #eef2f7; border-radius: 12px; padding: 16px; }
+        .task-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .meta-item { background: #fff; border: 1px solid #eef2f7; border-radius: 10px; padding: 12px 14px; }
+        .priority-badge { padding: 6px 10px; border-radius: 16px; font-weight: 700; font-size: .85rem; }
+        .priority-high { background: #fee2e2; color: #991b1b; }
+        .priority-medium { background: #ffedd5; color: #9a3412; }
+        .priority-low { background: #dcfce7; color: #14532d; }
+        .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .action-buttons .btn { border-radius: 10px; }
+        .multimedia-section { margin-top: 6px; }
+        .multimedia-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 6px; }
+        .gallery-section h4 { margin: 14px 0 10px; }
+        /* Discussion */
+        #discussion .form-input, #discussion textarea { width: 100%; border: 1px solid #e6e9f2; border-radius: 10px; padding: 10px 12px; }
+        #comments-list .info-item { background: #fafbff; border: 1px solid #eef2f7; border-radius: 10px; }
+        .sidebar { box-shadow: inset -1px 0 0 #eef2f7; }
+        .top-bar { border-bottom: 1px solid #eef2f7; }
+        @media (max-width: 992px) { .task-info-grid { grid-template-columns: 1fr; } }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -140,6 +171,13 @@ try {
                     </div>
 
                     <div class="task-content">
+                        <div class="summary-chips">
+                            <span class="chip"><i class="fas fa-diagram-project"></i> <?php echo htmlspecialchars($task['project_name'] ?: 'No Project'); ?></span>
+                            <span class="chip"><i class="fas fa-user"></i> <?php echo htmlspecialchars($task['assignee_name'] ?: 'Unassigned'); ?></span>
+                            <span class="chip"><i class="fas fa-flag"></i> <span class="priority-badge priority-<?php echo $task['priority']; ?>"><?php echo ucfirst($task['priority']); ?></span></span>
+                            <span class="chip"><i class="fas fa-calendar-day"></i> <?php echo $task['due_date'] ? date('M j, Y', strtotime($task['due_date'])) : 'No Due Date'; ?></span>
+                            <span class="chip"><i class="fas fa-clock"></i> <?php echo $task['estimated_hours'] ? ($task['estimated_hours'].' hrs') : 'No Estimate'; ?></span>
+                        </div>
                         <div class="task-info-grid">
                             <div class="task-main">
                                 <div class="task-description">
@@ -181,13 +219,19 @@ try {
                                 <h3>Actions</h3>
                                 <div class="action-buttons">
                                     <?php if ($task['status'] !== 'completed'): ?>
-                                        <form method="POST" action="task-management.php" style="display: inline;">
-                                            <input type="hidden" name="task_id" value="<?php echo $task_id; ?>">
-                                            <input type="hidden" name="action" value="complete">
-                                            <button type="submit" class="btn btn-success">
-                                                <i class="fas fa-check"></i> Mark Complete
-                                            </button>
-                                        </form>
+                                        <?php if (in_array($current_user['role'], ['admin', 'manager'])): ?>
+                                            <form method="POST" action="task-management.php" style="display: inline;">
+                                                <input type="hidden" name="task_id" value="<?php echo $task_id; ?>">
+                                                <input type="hidden" name="action" value="complete">
+                                                <button type="submit" class="btn btn-success">
+                                                    <i class="fas fa-check"></i> Mark Complete
+                                                </button>
+                                            </form>
+                                        <?php else: ?>
+                                            <span class="btn btn-secondary" style="cursor: not-allowed; opacity: 0.6;" title="Only managers and admins can mark tasks as completed">
+                                                <i class="fas fa-lock"></i> Complete (Restricted)
+                                            </span>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                     
                                     <?php if ($task['status'] === 'pending'): ?>
@@ -239,6 +283,19 @@ try {
                                         'entity_id' => $task_id
                                     ]); ?>
                                 </div>
+
+                                <!-- Discussion -->
+                                <div class="gallery-section" id="discussion">
+                                    <h4>Discussion</h4>
+                                    <div id="comments-list" class="info-grid" style="grid-template-columns: 1fr; gap: 12px;"></div>
+                                    <form id="comment-form" style="margin-top: 12px;">
+                                        <input type="hidden" name="task_id" value="<?php echo (int)$task_id; ?>">
+                                        <textarea name="content" class="form-input" rows="3" placeholder="Write a message..." required></textarea>
+                                        <div style="margin-top: 10px; text-align: right;">
+                                            <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -270,6 +327,53 @@ try {
         // Show multimedia section by default
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('multimedia-content').classList.add('show');
+        });
+        
+        // Discussion JS
+        document.addEventListener('DOMContentLoaded', function () {
+            const taskId = <?php echo (int)$task_id; ?>;
+            const listEl = document.getElementById('comments-list');
+            const formEl = document.getElementById('comment-form');
+            if (!listEl || !formEl) return;
+
+            function esc(html){ const div=document.createElement('div'); div.textContent=html; return div.innerHTML; }
+            function renderComment(c){
+                const who = esc(c.full_name || c.username || ('User #' + c.user_id));
+                const when = new Date(c.created_at.replace(' ', 'T'));
+                const item = document.createElement('div');
+                item.className = 'info-item';
+                item.innerHTML = `<div class="info-label">${who} <span style=\"font-weight: normal; color:#888;\">${when.toLocaleString()}</span></div>
+                                  <div class=\"info-value\">${esc(c.content)}</div>`;
+                return item;
+            }
+            async function loadComments(){
+                listEl.innerHTML = '';
+                try{
+                    const res = await fetch(`api/comments.php?task_id=${taskId}`);
+                    const data = await res.json();
+                    if(!data.success){ listEl.innerHTML = `<div class='info-item'><div class='info-value'>${esc(data.message||'Failed to load comments')}</div></div>`; return; }
+                    if(!data.comments || data.comments.length===0){ listEl.innerHTML = `<div class='info-item'><div class='info-value'>No messages yet.</div></div>`; return; }
+                    data.comments.forEach(c=> listEl.appendChild(renderComment(c)));
+                }catch(e){ listEl.innerHTML = `<div class='info-item'><div class='info-value'>Network error loading comments</div></div>`; }
+            }
+            formEl.addEventListener('submit', async function(e){
+                e.preventDefault();
+                const fd = new FormData(formEl);
+                const btn = formEl.querySelector('button[type=\"submit\"]');
+                btn.disabled = true;
+                try{
+                    const res = await fetch('api/comments.php', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if(data.success && data.comment){
+                        formEl.reset();
+                        listEl.appendChild(renderComment(data.comment));
+                    } else {
+                        alert(data.message || 'Failed to post message');
+                    }
+                }catch(err){ alert('Network error posting message'); }
+                finally{ btn.disabled = false; }
+            });
+            loadComments();
         });
     </script>
 </body>
