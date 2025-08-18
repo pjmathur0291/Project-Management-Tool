@@ -516,10 +516,24 @@ if (!$task_id) {
                     <!-- Discussion -->
                     <div class="task-section" id="discussion">
                         <h2 class="section-title">Discussion</h2>
-                        <div id="comments-list" class="info-grid" style="grid-template-columns: 1fr; gap: 12px;"></div>
-                        <form id="comment-form" style="margin-top: 12px;">
+                        <style>
+                            /* pleasant discussion UI */
+                            .comment-list { display:flex; flex-direction:column; gap:10px; }
+                            .comment-item { background:#f8fafc; border:1px solid #e6edf5; border-radius:12px; padding:10px 12px; }
+                            .comment-header { display:flex; justify-content:space-between; align-items:center; font-size:.9rem; color:#475569; }
+                            .comment-author { font-weight:600; color:#1f2937; }
+                            .comment-body { margin-top:6px; font-size:.98rem; color:#334155; white-space:pre-wrap; }
+                            #comment-input { background:#fff; border:1px solid #e6edf5; border-radius:12px; padding:12px 14px; }
+                            #mention-list .mention-item { padding:8px 10px; }
+                            #mention-list .mention-item:hover { background:#eef2ff; }
+                        </style>
+                        <div id="comments-list" class="comment-list"></div>
+                        <form id="comment-form" style="margin-top: 12px; position: relative;">
                             <input type="hidden" name="task_id" value="<?php echo (int)$task_id; ?>">
-                            <textarea name="content" class="task-description" rows="3" placeholder="Write a message..." required></textarea>
+                            <div class="mention-container" style="position: relative;">
+                                <textarea id="comment-input" name="content" class="task-description" rows="3" placeholder="Write a message... Use @ to mention" required></textarea>
+                                <div id="mention-list" style="position:absolute; left:8px; right:auto; bottom:48px; display:none; z-index:1000; background:#fff; border:1px solid #e6e9f2; border-radius:8px; max-height:220px; overflow:auto; min-width:240px; box-shadow:0 8px 20px rgba(0,0,0,0.08)"></div>
+                            </div>
                             <div style="margin-top: 10px; text-align: right;">
                                 <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
                             </div>
@@ -601,9 +615,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const who = esc(c.full_name || c.username || ('User #' + c.user_id));
         const when = new Date(c.created_at.replace(' ', 'T'));
         const item = document.createElement('div');
-        item.className = 'info-item';
-        item.innerHTML = `<div class="info-label">${who} <span style="font-weight: normal; color:#888;">${when.toLocaleString()}</span></div>
-                          <div class="info-value">${esc(c.content)}</div>`;
+        item.className = 'comment-item';
+        item.innerHTML = `<div class="comment-header"><span class="comment-author">${who}</span><span>${when.toLocaleString()}</span></div>
+                          <div class="comment-body">${esc(c.content)}</div>`;
         return item;
     }
 
@@ -637,6 +651,62 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     loadComments();
+
+    // --- Mentions (@) logic ---
+    const inputEl = document.getElementById('comment-input');
+    const listBox = document.getElementById('mention-list');
+    let members = [];
+    let mentionActive = false;
+    let mentionStart = -1;
+
+    async function loadMembers(){
+        try{
+            const res = await fetch('api/team.php');
+            const data = await res.json();
+            members = (data.members || []).map(m => ({ id:m.id, name: m.full_name || m.username || ('User #'+m.id) }));
+        }catch(e){ members = []; }
+    }
+    function filterMembers(query){
+        query = query.toLowerCase();
+        return members.filter(m => m.name.toLowerCase().includes(query)).slice(0,8);
+    }
+    function renderMentionList(items){
+        if (!items.length){ listBox.style.display='none'; listBox.innerHTML=''; return; }
+        listBox.innerHTML = items.map(i=>`<div class=\"mention-item\" data-id=\"${i.id}\" data-name=\"${i.name.replace(/\"/g,'&quot;')}\" style=\"padding:8px 10px; cursor:pointer;\">@${i.name}</div>`).join('');
+        listBox.style.display = 'block';
+    }
+    function insertMention(name){
+        const text = inputEl.value;
+        const before = text.substring(0, mentionStart);
+        const after = text.substring(inputEl.selectionStart);
+        const insert = '@' + name + ' ';
+        inputEl.value = before + insert + after;
+        const pos = (before + insert).length;
+        inputEl.setSelectionRange(pos, pos);
+        mentionActive = false; mentionStart = -1; listBox.style.display='none';
+        inputEl.focus();
+    }
+    inputEl.addEventListener('input', function(){
+        const pos = inputEl.selectionStart;
+        const text = inputEl.value;
+        if (!mentionActive){
+            // Activate when last typed char starts an @word
+            if (text[pos-1] === '@') { mentionActive = true; mentionStart = pos-1; renderMentionList(filterMembers('')); }
+            return;
+        }
+        // If user deletes before start or inserts whitespace before finishing, cancel
+        if (pos <= mentionStart){ mentionActive=false; listBox.style.display='none'; return; }
+        const fragment = text.substring(mentionStart+1, pos);
+        if (fragment.match(/\s/) ){ mentionActive=false; listBox.style.display='none'; return; }
+        renderMentionList(filterMembers(fragment));
+    });
+    listBox.addEventListener('click', function(e){
+        const item = e.target.closest('.mention-item');
+        if (!item) return;
+        insertMention(item.dataset.name);
+    });
+    inputEl.addEventListener('keydown', function(e){ if (mentionActive && e.key==='Escape'){ mentionActive=false; listBox.style.display='none'; } });
+    loadMembers();
 });
 </script>
 </body>

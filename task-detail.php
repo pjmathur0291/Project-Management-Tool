@@ -267,34 +267,61 @@ try {
                             </div>
                             
                             <div class="multimedia-content" id="multimedia-content">
-                                <!-- Upload Form -->
-                                <div class="upload-section">
-                                    <h4>Upload Files</h4>
-                                    <?php echo $fileViewer->renderUploadForm('task', $task_id); ?>
+                                <style>
+                                    .tab-nav { display:flex; gap:8px; margin:8px 0 12px; }
+                                    .tab-btn { padding:8px 12px; border:1px solid #e6e9f2; background:#fff; border-radius:10px; cursor:pointer; }
+                                    .tab-btn.active { background:#6a82fb; color:#fff; border-color:#6a82fb; }
+                                    .tab-pane { display:none; }
+                                    .tab-pane.active { display:block; }
+                                </style>
+                                <div class="tab-nav" id="detail-tabs">
+                                    <button class="tab-btn active" data-tab="files">Files & Media</button>
+                                    <button class="tab-btn" data-tab="discussion">Discussion</button>
                                 </div>
-
-                                <!-- File Gallery -->
-                                <div class="gallery-section">
-                                    <h4>Uploaded Files</h4>
-                                    <?php echo $fileViewer->renderFileGallery($formattedFiles, [
-                                        'show_delete' => true,
-                                        'current_user_id' => $current_user['id'],
-                                        'entity_type' => 'task',
-                                        'entity_id' => $task_id
-                                    ]); ?>
+                                <div id="tab-files" class="tab-pane active">
+                                    <!-- Upload Form -->
+                                    <div class="upload-section">
+                                        <h4>Upload Files</h4>
+                                        <?php echo $fileViewer->renderUploadForm('task', $task_id); ?>
+                                    </div>
+                                    <!-- File Gallery -->
+                                    <div class="gallery-section">
+                                        <h4>Uploaded Files</h4>
+                                        <?php echo $fileViewer->renderFileGallery($formattedFiles, [
+                                            'show_delete' => true,
+                                            'current_user_id' => $current_user['id'],
+                                            'entity_type' => 'task',
+                                            'entity_id' => $task_id
+                                        ]); ?>
+                                    </div>
                                 </div>
 
                                 <!-- Discussion -->
+                                <div id="tab-discussion" class="tab-pane">
                                 <div class="gallery-section" id="discussion">
                                     <h4>Discussion</h4>
-                                    <div id="comments-list" class="info-grid" style="grid-template-columns: 1fr; gap: 12px;"></div>
-                                    <form id="comment-form" style="margin-top: 12px;">
+                                    <style>
+                                        .comment-list { display:flex; flex-direction:column; gap:10px; }
+                                        .comment-item { background:#f8fafc; border:1px solid #e6edf5; border-radius:12px; padding:10px 12px; }
+                                        .comment-header { display:flex; justify-content:space-between; align-items:center; font-size:.9rem; color:#475569; }
+                                        .comment-author { font-weight:600; color:#1f2937; }
+                                        .comment-body { margin-top:6px; font-size:.98rem; color:#334155; white-space:pre-wrap; }
+                                        #comment-input { background:#fff; border:1px solid #e6edf5; border-radius:12px; padding:12px 14px; }
+                                        #mention-list .mention-item { padding:8px 10px; }
+                                        #mention-list .mention-item:hover { background:#eef2ff; }
+                                    </style>
+                                    <div id="comments-list" class="comment-list"></div>
+                                    <form id="comment-form" style="margin-top: 12px; position: relative;">
                                         <input type="hidden" name="task_id" value="<?php echo (int)$task_id; ?>">
-                                        <textarea name="content" class="form-input" rows="3" placeholder="Write a message..." required></textarea>
+                                        <div class="mention-container" style="position: relative;">
+                                            <textarea id="comment-input" name="content" class="form-input" rows="3" placeholder="Write a message... Use @ to mention" required></textarea>
+                                            <div id="mention-list" style="position:absolute; left:8px; right:auto; bottom:48px; display:none; z-index:1000; background:#fff; border:1px solid #e6e9f2; border-radius:8px; max-height:220px; overflow:auto; min-width:240px; box-shadow:0 8px 20px rgba(0,0,0,0.08)"></div>
+                                        </div>
                                         <div style="margin-top: 10px; text-align: right;">
                                             <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Send</button>
                                         </div>
                                     </form>
+                                </div>
                                 </div>
                             </div>
                         </div>
@@ -327,6 +354,19 @@ try {
         // Show multimedia section by default
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('multimedia-content').classList.add('show');
+            // Tabs
+            const tabs = document.getElementById('detail-tabs');
+            if (tabs){
+                tabs.addEventListener('click', function(e){
+                    const btn = e.target.closest('.tab-btn');
+                    if (!btn) return;
+                    tabs.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const name = btn.dataset.tab;
+                    document.getElementById('tab-files').classList.toggle('active', name==='files');
+                    document.getElementById('tab-discussion').classList.toggle('active', name==='discussion');
+                });
+            }
         });
         
         // Discussion JS
@@ -374,6 +414,60 @@ try {
                 finally{ btn.disabled = false; }
             });
             loadComments();
+            
+            // Mentions (@)
+            const inputEl = document.getElementById('comment-input');
+            const listBox = document.getElementById('mention-list');
+            let members = [];
+            let mentionActive = false;
+            let mentionStart = -1;
+
+            async function loadMembers(){
+                try{
+                    const res = await fetch('api/team.php');
+                    const data = await res.json();
+                    members = (data.members || []).map(m => ({ id:m.id, name: m.full_name || m.username || ('User #'+m.id) }));
+                }catch(e){ members = []; }
+            }
+            function filterMembers(query){
+                query = query.toLowerCase();
+                return members.filter(m => m.name.toLowerCase().includes(query)).slice(0,8);
+            }
+            function renderMentionList(items){
+                if (!items.length){ listBox.style.display='none'; listBox.innerHTML=''; return; }
+                listBox.innerHTML = items.map(i=>`<div class=\"mention-item\" data-id=\"${i.id}\" data-name=\"${i.name.replace(/\"/g,'&quot;')}\" style=\"padding:8px 10px; cursor:pointer;\">@${i.name}</div>`).join('');
+                listBox.style.display = 'block';
+            }
+            function insertMention(name){
+                const text = inputEl.value;
+                const before = text.substring(0, mentionStart);
+                const after = text.substring(inputEl.selectionStart);
+                const insert = '@' + name + ' ';
+                inputEl.value = before + insert + after;
+                const pos = (before + insert).length;
+                inputEl.setSelectionRange(pos, pos);
+                mentionActive = false; mentionStart = -1; listBox.style.display='none';
+                inputEl.focus();
+            }
+            inputEl.addEventListener('input', function(){
+                const pos = inputEl.selectionStart;
+                const text = inputEl.value;
+                if (!mentionActive){
+                    if (text[pos-1] === '@') { mentionActive = true; mentionStart = pos-1; renderMentionList(filterMembers('')); }
+                    return;
+                }
+                if (pos <= mentionStart){ mentionActive=false; listBox.style.display='none'; return; }
+                const fragment = text.substring(mentionStart+1, pos);
+                if (fragment.match(/\s/)){ mentionActive=false; listBox.style.display='none'; return; }
+                renderMentionList(filterMembers(fragment));
+            });
+            listBox.addEventListener('click', function(e){
+                const item = e.target.closest('.mention-item');
+                if (!item) return;
+                insertMention(item.dataset.name);
+            });
+            inputEl.addEventListener('keydown', function(e){ if (mentionActive && e.key==='Escape'){ mentionActive=false; listBox.style.display='none'; } });
+            loadMembers();
         });
     </script>
 </body>

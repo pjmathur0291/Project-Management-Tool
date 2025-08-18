@@ -7,6 +7,7 @@ header('Access-Control-Allow-Headers: Content-Type');
 
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/NotificationManager.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $response = ['success' => false, 'message' => 'Invalid request'];
@@ -93,6 +94,40 @@ try {
             ');
             $stmt->execute([$id]);
             $row = $stmt->fetch();
+
+            // Detect @mentions and send notifications
+            try {
+                $mentionUsernames = [];
+                if (preg_match_all('/@([\p{L}0-9_\.\- ]{2,50})/u', $content, $m)) {
+                    $mentionUsernames = array_unique(array_map('trim', $m[1]));
+                }
+                if (!empty($mentionUsernames)) {
+                    $nm = new NotificationManager($pdo);
+                    // Map names to users (match against full_name first, fallback to username)
+                    $in = implode(',', array_fill(0, count($mentionUsernames), '?'));
+                    $q = $pdo->prepare("SELECT id, full_name, username FROM users WHERE full_name IN ($in) OR username IN ($in)");
+                    $params = array_merge($mentionUsernames, $mentionUsernames);
+                    $q->execute($params);
+                    $users = $q->fetchAll();
+                    // Get task title for message
+                    $t = $pdo->prepare('SELECT title FROM tasks WHERE id = ?');
+                    $t->execute([$taskId]);
+                    $task = $t->fetch();
+                    $taskTitle = $task ? $task['title'] : ('Task #' . $taskId);
+                    foreach ($users as $u) {
+                        if ((int)$u['id'] === $currentUserId) continue; // skip self
+                        $nm->sendNotification(
+                            (int)$u['id'],
+                            'You were mentioned in a task',
+                            "You were mentioned in '{$taskTitle}'.",
+                            'task_updated',
+                            $taskId
+                        );
+                    }
+                }
+            } catch (Exception $ex) {
+                error_log('Mention notification error: ' . $ex->getMessage());
+            }
 
             $response = ['success' => true, 'comment' => $row];
             break;
